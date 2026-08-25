@@ -52,13 +52,41 @@ const HISTORY_REFETCH_MS = 120
 /** Items of the transcript fetched per load. */
 export const HISTORY_LIMIT = 200
 
+/** localStorage key for the page's navigation state (survives a refresh). */
+const PAGE_STORAGE_KEY = 'soulmirror.page'
+/** Debounce of the localStorage write (bursts of selection / tab changes). */
+const PERSIST_MS = 250
+
+const PANE_TABS: readonly PaneTab[] = ['chat', 'announce', 'home', 'members', 'admin', 'info']
+const COL2_TABS: readonly Col2Tab[] = ['contacts', 'agents', 'groups']
+
+/** The navigation state we persist, guarded for non-browser envs (unit tests run under node). */
+function loadPersistedPage(): Pick<PageSnapshot, 'open' | 'selected' | 'col2Tab' | 'paneTab'> {
+  const fallback = { open: false, selected: undefined, col2Tab: 'contacts' as Col2Tab, paneTab: DEFAULT_PANE_TAB as PaneTab }
+  try {
+    if (typeof localStorage === 'undefined') return fallback
+    const raw = localStorage.getItem(PAGE_STORAGE_KEY)
+    if (raw === null) return fallback
+    const p = JSON.parse(raw) as Partial<PageSnapshot>
+    return {
+      open: p.open === true,
+      selected: typeof p.selected === 'string' ? p.selected : undefined,
+      col2Tab: COL2_TABS.includes(p.col2Tab as Col2Tab) ? p.col2Tab as Col2Tab : 'contacts',
+      paneTab: PANE_TABS.includes(p.paneTab as PaneTab) ? p.paneTab as PaneTab : DEFAULT_PANE_TAB,
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export class PageStore {
-  private snapshot: PageSnapshot = { open: false, selected: undefined, col2Tab: 'contacts', paneTab: DEFAULT_PANE_TAB, threads: {}, alter: EMPTY_ALTER, deciding: [] }
+  private snapshot: PageSnapshot = { ...loadPersistedPage(), threads: {}, alter: EMPTY_ALTER, deciding: [] }
   private readonly listeners = new Set<() => void>()
   private readonly typingSentAt = new Map<string, number>()
   private readonly typingIdle = new Map<string, ReturnType<typeof setTimeout>>()
   private historyTimer: ReturnType<typeof setTimeout> | undefined
   private historyAgain = false
+  private persistTimer: ReturnType<typeof setTimeout> | undefined
   private seq = 0
   /**
    * Thread keys with a fetch ACTUALLY in flight. Guards use this set, never the
@@ -82,6 +110,30 @@ export class PageStore {
   private set(patch: Partial<PageSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...patch }
     for (const l of this.listeners) l()
+    this.schedulePersist()
+  }
+
+  /** Debounce the navigation-state write so a burst of selection/tab changes writes once. */
+  private schedulePersist(): void {
+    if (this.persistTimer !== undefined) clearTimeout(this.persistTimer)
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined
+      this.persist()
+    }, PERSIST_MS)
+  }
+
+  private persist(): void {
+    try {
+      if (typeof localStorage === 'undefined') return
+      localStorage.setItem(PAGE_STORAGE_KEY, JSON.stringify({
+        open: this.snapshot.open,
+        selected: this.snapshot.selected,
+        col2Tab: this.snapshot.col2Tab,
+        paneTab: this.snapshot.paneTab,
+      }))
+    } catch {
+      // best effort: a persistence failure never breaks the page
+    }
   }
 
   private setThread(fp: string, thread: ThreadState): void {

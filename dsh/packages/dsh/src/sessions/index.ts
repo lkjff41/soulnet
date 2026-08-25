@@ -1,4 +1,4 @@
-/**
+﻿/**
  * soulmirror-sessions — ONE alter session ("My alter", P4). The alter
  * session's agent IS the owner's alter for every friend: the owner talks to
  * it (and only to it); every friend's mail is relayed into it; it writes to
@@ -109,7 +109,7 @@ export interface Config {
 export const name = 'soulmirror-sessions'
 export const inject = ['soulmirror', 'soulmirrorHome', 'agents', 'agentLoop', 'sessions', 'workspaceRegistry']
 
-const WORKSPACE_TITLE = 'SoulMirror'
+const WORKSPACE_TITLE = '灵镜'
 const PRESET_ID = 'soulmirror-chat'
 const MAP_FILE = 'dsh-sessions.json'
 const LOG_FILE = 'dsh-sessions.log'
@@ -504,7 +504,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const history = (limit?: number): AlterHistory => {
     const session = alterSession()
     const agent = alterId === undefined ? undefined : ctx.agents.get(alterId)
-    const chat = session === undefined ? EMPTY_CHAT : chatFromEvents(session.events)
+    const chat = session === undefined ? EMPTY_CHAT : chatFromEvents(session.events, { process: true })
     const items = limit !== undefined && limit > 0 && chat.items.length > limit ? chat.items.slice(chat.items.length - limit) : chat.items
     return { sessionId: alterId, status: agent?.status ?? 'idle', chat: { ...chat, items } }
   }
@@ -746,10 +746,27 @@ export function apply(ctx: Context, config: Config = {}): void {
     return handle.agent
   }
 
+  /** Create/reuse the plugin's dsh workspace and pin the alter session into it, so it never lands in the ungrouped list. */
+  const attachToWorkspace = async (sessionId: SessionId): Promise<void> => {
+    const registry = ctx.get('workspaceRegistry') as { create(path: string, title?: string): Promise<{ attachSession(id: SessionId): Promise<void> }> } | undefined
+    if (registry === undefined) return
+    try {
+      const ws = await registry.create(a2aDir, WORKSPACE_TITLE)
+      await ws.attachSession(sessionId)
+      log('info', 'attached alter session ' + sessionId + ' to dsh workspace "' + WORKSPACE_TITLE + '" (' + a2aDir + ')')
+    } catch (error: unknown) {
+      log('warn', 'attach alter session to dsh workspace failed: ' + String(error))
+    }
+  }
   /** Serialised: two concurrent callers (startup + a notification) must not create two sessions. */
   const ensureAlter = (): Promise<Agent> => {
     if (ensuring !== undefined) return ensuring
-    const p = ensureAlterInner().finally(() => { ensuring = undefined })
+    const p = ensureAlterInner()
+      .then((agent) => {
+        if (alterId !== undefined) void attachToWorkspace(alterId)
+        return agent
+      })
+      .finally(() => { ensuring = undefined })
     ensuring = p
     return p
   }

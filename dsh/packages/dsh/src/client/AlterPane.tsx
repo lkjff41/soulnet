@@ -13,6 +13,7 @@ import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deeps
 import { networkStore, type ApiChatItem } from './api.ts'
 import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
+import { ProcessItemView } from './process-ui.tsx'
 import type { Translate } from './translate.ts'
 import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
 import { pageStore } from './page-store.ts'
@@ -46,6 +47,7 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   const drafts = net.inbox.drafts
   const running = alter.status === 'running' || alter.chat.running || alter.instructing
   const [draft, setDraft] = useState('')
+  const [openThinking, setOpenThinking] = useState<ReadonlySet<string>>(new Set())
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
@@ -172,6 +174,23 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             <span className="sm-statepill sm-err">{t('alter.item.turnFailed', { reason: item.message === undefined ? item.reason : `${item.reason} — ${item.message}` })}</span>
             <span className="sm-noteline">{t('alter.failed.hint')}</span>
           </div>
+        )
+      case 'thinking':
+      case 'tool':
+        return (
+          <ProcessItemView
+            item={item}
+            t={t}
+            open={openThinking.has(item.key)}
+            onToggle={(key) => {
+              setOpenThinking((prev) => {
+                const next = new Set(prev)
+                if (next.has(key)) next.delete(key)
+                else next.add(key)
+                return next
+              })
+            }}
+          />
         )
       default:
         return <></>
