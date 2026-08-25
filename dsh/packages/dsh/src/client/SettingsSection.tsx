@@ -13,7 +13,7 @@ import type { CSSProperties } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
-import { ProtocolEditor, TIERS, tierLabel } from './alter-ui.tsx'
+import { ProtocolEditor } from './alter-ui.tsx'
 import { api, networkStore, type ApiPending, type ReplyTier } from './api.ts'
 import type { NS } from './locales.ts'
 import { pageStore } from './page-store.ts'
@@ -230,10 +230,6 @@ export function SoulmirrorSettingsSection({ openSession, scope, t }: SoulmirrorS
       <div style={card} data-soulmirror-settings-alter>
         <h4 style={h4}>{t('settings.alter')}</h4>
         <p style={small}>{t('settings.alter.intro')}</p>
-        <SettingField label={t('settings.alter.defaultTier')} field="defaultTier" scope={scope} values={settings.value} user={userLayer} writable={writable} type="select" options={TIERS} optionLabel={(o) => tierLabel(t, o as ReplyTier)} />
-        <SettingField label={t('settings.alter.perHour')} field="autoReplyPerHour" scope={scope} values={settings.value} user={userLayer} writable={writable} type="number" min={0} />
-        <SettingField label={t('settings.alter.alterMode')} field="alterMode" scope={scope} values={settings.value} user={userLayer} writable={writable} type="select" options={['comms', 'full']} optionLabel={(o) => t(o === 'full' ? 'settings.alter.alterMode.full' : 'settings.alter.alterMode.comms')} />
-        <p style={small}>{t('settings.alter.alterMode.hint')}</p>
         <div style={rowStyle}>
           <button type="button" onClick={() => { pageStore.open('alter') }} data-soulmirror-settings-open-page>{t('settings.alter.openPage')}</button>
           {state?.alter?.sessionId != null ? <button type="button" onClick={() => { openSession(state.alter!.sessionId!) }} data-soulmirror-settings-open-alter-session>{t('settings.alter.openSession')}</button> : null}
