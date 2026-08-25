@@ -1,0 +1,23 @@
+# soulnet-dsh-sidebar bundle layer. Applied after @deepseek-ai/dsh-web-app
+# when a profile lists this bundle.
+#
+# The left column and the brand are dsh plugin rows like any other, so this
+# package takes them over by id: the stock sidebar (`ui-sidebar`, the
+# occupant of the layout's `sidebar` seat) and the official brand
+# (`ui-brand-official`, the occupant of the three brand seats) are switched
+# off, and our own browser bundle registers the same seats in their place.
+# Every inner seat the stock sidebar declared (`sidebar.brand.mark`,
+# `sidebar.brand.name`, `sidebar.workspaces`, `sidebar.settings`,
+# `sidebar.footer.action`) is declared again by ours, so ui-workspace,
+# ui-settings and every footer action keep mounting untouched; the two new
+# seats (`sidebar.nav.primary`, `sidebar.header.action`) are extra.
+#
+# Roll back = remove this bundle from the profile (`dsh plugin --profile web
+# remove soulnet-dsh-sidebar`): the two stock rows come back on their own.
+- id: ui-sidebar
+  disabled: true
+- id: ui-brand-official
+  disabled: true
+- insert:
+    - id: soulmirror-sidebar
+      name: 'soulnet-dsh-sidebar'

@@ -1,0 +1,32 @@
+{
+  "name": "soulnet-peer-darwin-x64",
+  "version": "0.1.2",
+  "description": "The soulnet light peer binary for macOS Intel (x64); installed automatically as an optional dependency of soulnet-dsh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/startupworld-ai/soulnet",
+    "directory": "dsh/packages/soulnet-darwin-x64"
+  },
+  "homepage": "https://github.com/startupworld-ai/soulnet#readme",
+  "keywords": [
+    "soulmirror",
+    "soulnet",
+    "a2a",
+    "dsh-plugin",
+    "deepseek-harness"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19"
+  }
+}

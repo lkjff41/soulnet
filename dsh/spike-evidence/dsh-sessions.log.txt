@@ -1,0 +1,5 @@
+2026-08-22T14:05:31.434Z INFO workspace "SoulMirror" id=fa6045bc-79dc-4b29-9103-4cd4ae59438b path=<DSH_HOME>\soulmirror\a2a
+2026-08-22T14:05:31.477Z ERROR resume of session-89dcd34f-86eb-4096-b3d7-a042d175f21e (Alice) failed; creating a fresh session. Cause: SessionFormatUnsupportedError: session "session-89dcd34f-86eb-4096-b3d7-a042d175f21e" contains event type "a2a/message" (seq 11) unknown to this harness and not marked ignorable; refusing to interpret the log — it was likely written by a newer harness (raw log: <DSH_HOME>\sessions\<cwd-slug>\session-89dcd34f-86eb-4096-b3d7-a042d175f21e\session.jsonl.zstd)
+2026-08-22T14:05:31.515Z INFO created session session-294ccd9a-17e6-4d8d-942e-2c96560b1241 for Alice (preset=soulmirror-chat)
+2026-08-22T14:05:31.556Z INFO resumed session session-43757354-5ec1-41cb-88f2-345d27ce5dde for Bob
+2026-08-22T14:05:33.066Z INFO inbound a2a-d87128ed-af92-4026-868b-468072b35dd8 from Alice → session session-294ccd9a-17e6-4d8d-942e-2c96560b1241 (both)

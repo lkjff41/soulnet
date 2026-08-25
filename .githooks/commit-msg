@@ -1,0 +1,15 @@
+#!/bin/sh
+# Reject commit messages that contain CJK characters: soulnet is an English-only
+# repository (see CONTRIBUTING.md). Enable with: git config core.hooksPath .githooks
+msg_file="$1"
+if grep -qP '[\x{4e00}-\x{9fff}\x{3040}-\x{30ff}\x{ac00}-\x{d7af}]' "$msg_file" 2>/dev/null || \
+   python - "$msg_file" <<'PY' 2>/dev/null
+import re,sys
+t=open(sys.argv[1],encoding='utf-8',errors='ignore').read()
+sys.exit(0 if re.search(r'[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]',t) else 1)
+PY
+then
+  echo "commit-msg: soulnet commit messages must be English (CJK characters found). See CONTRIBUTING.md." >&2
+  exit 1
+fi
+exit 0

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "types": ["react"]
+  },
+  "include": ["src/client/**/*.ts", "src/client/**/*.tsx", "src/events.ts", "src/network/types.ts"]
+}

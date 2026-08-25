@@ -1,0 +1,48 @@
+# fresh-user install -- clean DSH_HOME=%TEMP%\dsh-fresh-home, local registry http://127.0.0.1:4873 serving dsh/dist/*.tgz (pnpm run pack:all), 2026-08-23
+$ npx -y @deepseek-ai/dsh@0.1.1-rc.2 plugin --profile web add @startupworld-ai/soulnet-dsh --registry http://127.0.0.1:4873
+Progress: resolved 1, reused 0, downloaded 0, added 0
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ @startupworld-ai/soulnet-dsh ^0.1.0
+
+Packages: +2
+++
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: C:\Users\test\AppData\Local\pnpm\store\v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 6, reused 0, downloaded 2, added 2, done
+Added 6 entries to minimumReleaseAgeExclude in pnpm-workspace.yaml (set minimumReleaseAgeStrict to true to gate these updates with a prompt):
+  @startupworld-ai/soulnet-darwin-arm64@0.1.0
+  @startupworld-ai/soulnet-darwin-x64@0.1.0
+  @startupworld-ai/soulnet-dsh@0.1.0
+  @startupworld-ai/soulnet-linux-arm64@0.1.0
+  @startupworld-ai/soulnet-linux-x64@0.1.0
+  @startupworld-ai/soulnet-win32-x64@0.1.0
+Done in 864ms using pnpm v11.22.0
+
+$ ls %DSH_HOME%\profiles\web\node_modules\@startupworld-ai
+soulnet-dsh
+soulnet-win32-x64
+
+$ GET /soulmirror/api/state (before onboarding)
+{"backend":"soulnet","status":{"backend":"soulnet","state":"ready","restarts":0,"relay":"http://127.0.0.1:9395","home":"C:\Users\test\AppData\Local\Temp\dsh-fresh-soulnet","binary":"C:\Users\test\AppData\Local\Temp\dsh-fresh-home\profiles\web\node_modules\@startupworld-ai\soulnet-win32-x64\bin\soulnet.exe","binarySource":"platform-package","pid":60568,"protocol":"soulnet/1","version":"0.1.0"},"identity":null,...}
+
+# registry log (which requests were served locally vs proxied)
+local registry on http://127.0.0.1:4873 (upstream https://registry.npmjs.org)
+  @startupworld-ai/soulnet-darwin-arm64@0.1.0
+  @startupworld-ai/soulnet-darwin-x64@0.1.0
+  @startupworld-ai/soulnet-dsh@0.1.0
+  @startupworld-ai/soulnet-linux-arm64@0.1.0
+  @startupworld-ai/soulnet-linux-x64@0.1.0
+  @startupworld-ai/soulnet-win32-x64@0.1.0
+local   GET /@startupworld-ai/soulnet-win32-x64
+proxy   GET /@deepseek-ai/dsh -> 200
+local   GET /@startupworld-ai/soulnet-dsh
+local   GET /@startupworld-ai/soulnet-darwin-arm64
+local   GET /@startupworld-ai/soulnet-linux-arm64
+local   GET /@startupworld-ai/soulnet-win32-x64
+local   GET /@startupworld-ai/soulnet-linux-x64
+local   GET /@startupworld-ai/soulnet-darwin-x64
+local   GET /@startupworld-ai/soulnet-win32-x64/-/soulnet-win32-x64-0.1.0.tgz
+local   GET /@startupworld-ai/soulnet-dsh/-/soulnet-dsh-0.1.0.tgz

@@ -1,0 +1,23 @@
+{
+  "message": {
+    "id": "msg-vector-0001",
+    "from": "NHUPmL1Z_PyUbaRaqr6TOw",
+    "to": "ajgD1fBZkCocba-8m6Rykg",
+    "conv_id": "NHUPmL1Z_PyUbaRaqr6TOw~ajgD1fBZkCocba-8m6Rykg",
+    "ts": "2026-08-22T01:02:03.123456789Z",
+    "type": "text",
+    "body": "你主人周四有空吗？\u003ctest\u003e \u0026 done"
+  },
+  "plaintext_json": "{\"id\":\"msg-vector-0001\",\"from\":\"NHUPmL1Z_PyUbaRaqr6TOw\",\"to\":\"ajgD1fBZkCocba-8m6Rykg\",\"conv_id\":\"NHUPmL1Z_PyUbaRaqr6TOw~ajgD1fBZkCocba-8m6Rykg\",\"ts\":\"2026-08-22T01:02:03.123456789Z\",\"type\":\"text\",\"body\":\"你主人周四有空吗？\\u003ctest\\u003e \\u0026 done\"}",
+  "envelope": {
+    "v": 2,
+    "to": "ajgD1fBZkCocba-8m6Rykg",
+    "from": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "ts": "2026-08-22T01:02:03.123456789Z",
+    "cipher": "DEVDl4bWhQj+EkGLaE8ePfZejn0FwzmwnNwIaGER2SY11NBUBFCyB0oRYYOhY5BfGo6T6Ur/mpdHfiliU0rHXahN1Ap3YnEnalxiRX7aN1lKNivUd7aCWT2jWOToFWTluBqN5t3HJHTxCsxRMIuc7MQSeqlA5nkjuv3xmQsJurTK2xNwMLhQ3d3gSzGGFEQhi6bYvHhMIUzO7CUVuKYl1ESGU/LZ+c7+VG97R9Bt/GLdsQdca0Vkd3OHWhPxaWDkxmdxleis2JsPR1Ap400lobZhONsI2xErrY9w07e1e53uOu3VK4wNhqOyVbe3RM34G9TAVpcrsTm20Su/za1rk3XdqODuFc4m7eQO2Oh1XP/BoMoLIvKNrgaStoKT1bdUHw==",
+    "sig": "PlIdA/j+MTOz95x0uzXUkiNeqPEWaFS/l1i6XMgKM1W45tWBLpxKQHZC/3GXuJk9NA7PHHYJeVY3F42AMFZSDA==",
+    "from_xpub": "wwb7DvK/i3+TutmBVfo32ux02wxMvtpsbx26nTZVglI="
+  },
+  "envelope_signing_bytes": "a2a-envelope-v2\najgD1fBZkCocba-8m6Rykg\n2026-08-22T01:02:03.123456789Z\nDEVDl4bWhQj+EkGLaE8ePfZejn0FwzmwnNwIaGER2SY11NBUBFCyB0oRYYOhY5BfGo6T6Ur/mpdHfiliU0rHXahN1Ap3YnEnalxiRX7aN1lKNivUd7aCWT2jWOToFWTluBqN5t3HJHTxCsxRMIuc7MQSeqlA5nkjuv3xmQsJurTK2xNwMLhQ3d3gSzGGFEQhi6bYvHhMIUzO7CUVuKYl1ESGU/LZ+c7+VG97R9Bt/GLdsQdca0Vkd3OHWhPxaWDkxmdxleis2JsPR1Ap400lobZhONsI2xErrY9w07e1e53uOu3VK4wNhqOyVbe3RM34G9TAVpcrsTm20Su/za1rk3XdqODuFc4m7eQO2Oh1XP/BoMoLIvKNrgaStoKT1bdUHw==",
+  "key_derivation_info": "key = SHA-256(\"soulmirror-a2a-v2-aead\\n\" || X25519(my_priv, their_pub)); AES-256-GCM, nonce = first 12 bytes of base64-decoded cipher, no AAD"
+}

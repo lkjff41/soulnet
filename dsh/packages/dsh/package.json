@@ -1,0 +1,137 @@
+{
+  "name": "soulnet-dsh",
+  "version": "0.1.2",
+  "description": "SoulMirror network for DeepSeek Harness: A2A identity, friends and end-to-end encrypted chat as dsh sessions -- host plugins + browser UI bundle, backed by the soulnet light peer (shipped as a platform package)",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "soulmirror",
+    "soulnet",
+    "a2a",
+    "agent-network",
+    "e2e-encryption"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/startupworld-ai/soulnet",
+    "directory": "dsh/packages/dsh"
+  },
+  "homepage": "https://github.com/startupworld-ai/soulnet/tree/main/dsh#readme",
+  "bugs": {
+    "url": "https://github.com/startupworld-ai/soulnet/issues"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./sessions": {
+      "types": "./lib/types/sessions/index.d.ts",
+      "default": "./lib/sessions.js"
+    },
+    "./tools": {
+      "types": "./lib/types/tools/index.d.ts",
+      "default": "./lib/tools.js"
+    },
+    "./commands": {
+      "types": "./lib/types/commands/index.d.ts",
+      "default": "./lib/commands.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/*.js",
+    "lib/*.js.map",
+    "lib/types/**/*.d.ts",
+    "cordis.patch.yml",
+    "presets/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-commands",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "soulnet-dsh-sidebar"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "pnpm run typecheck:emit && tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "typecheck:emit": "tsc -p tsconfig.json && tsc -p tsconfig.client.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --exclude test/integration.test.ts",
+    "test:integration": "vitest run test/integration.test.ts",
+    "watch": "tsdown --watch",
+    "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\""
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "react": "^18.2.0"
+  },
+  "optionalDependencies": {
+    "soulnet-peer-darwin-arm64": "workspace:*",
+    "soulnet-peer-darwin-x64": "workspace:*",
+    "soulnet-peer-linux-arm64": "workspace:*",
+    "soulnet-peer-linux-x64": "workspace:*",
+    "soulnet-peer-windows-x64": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-agent": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent-loop": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-agent-presets": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-brand": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-runtime": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-commands": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-input-trigger": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-sidebar": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-theme": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-commands": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.1.1-rc.2",
+    "@deepseek-ai/dsh-workspace": "0.1.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^22.15.0",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
+    "soulnet-dsh-sidebar": "workspace:*",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  }
+}

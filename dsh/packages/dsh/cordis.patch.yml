@@ -1,0 +1,40 @@
+# soulnet-dsh bundle layer. Applied after @deepseek-ai/dsh-base and
+# @deepseek-ai/dsh-web-app when a profile lists this bundle.
+#
+# Four host rows from one package. The bare package-name row is the one the
+# client-module scan keys on (package.json `dsh.client` ->
+# /plugins/soulnet-dsh/client.js); subpath rows
+# (`<pkg>/<subpath>`) are host-only by construction (the modules scan treats
+# them as "permanently not a client row").
+- insert:
+    # ctx.soulmirror - NetworkClient. Default backend: the `soulnet` light peer
+    # (Go binary, spawned over stdio JSON-RPC); `fake` = in-memory test backend.
+    # Every field here is also a user setting (namespace `soulmirror`, editable in
+    # Settings -> SoulMirror network); the user layer wins over this entry.
+    - id: soulmirror-network
+      name: 'soulnet-dsh'
+      config:
+        backend: soulnet
+        # relay: https://relay.startupworld.cn
+        # displayName: ''        # create the identity with this name on first start; empty = onboarding asks
+        # peerBinary: ''         # empty = `soulnet` on PATH, then <plugin dir>/bin/soulnet[.exe]
+        # home: ''               # empty = $SOULNET_HOME, then ~/.soulnet (a2a/ underneath)
+
+    # One dsh workspace "SoulMirror" + ONE alter session ("My alter"): every
+    # friend's mail -> `user/message` (source plugin:'soulmirror', form:'relay')
+    # in that session; reply tiers / drafts; unread total in the title.
+    - id: soulmirror-sessions
+      name: 'soulnet-dsh/sessions'
+      config:
+        preset: soulmirror-chat
+        unreadInTitle: true
+
+    # Model tools: soulmirror_friends / soulmirror_card / soulmirror_add_friend /
+    # soulmirror_send_message / soulmirror_read_conversation (send: direct on the
+    # owner's word or in the auto tier, otherwise a pending draft for the owner).
+    - id: soulmirror-tools
+      name: 'soulnet-dsh/tools'
+
+    # Slash commands: /card, /friends, /add <card_uri> [note]
+    - id: soulmirror-commands
+      name: 'soulnet-dsh/commands'

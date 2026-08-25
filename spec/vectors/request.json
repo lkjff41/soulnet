@@ -1,0 +1,20 @@
+[
+  {
+    "pub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "method": "GET",
+    "path": "/mail",
+    "ts": "2026-08-22T01:02:03Z",
+    "signing_bytes": "a2a-req-v2\nGET\n/mail\n2026-08-22T01:02:03Z",
+    "sig": "UNuA3NPp6nZwRRozJnlb+yQrYu/hbyLI2/TIWlyepp3g00aUPwswQMxscAQCEGsMZqqq92wE2vnZV137fqp+BA==",
+    "fingerprint": "NHUPmL1Z_PyUbaRaqr6TOw"
+  },
+  {
+    "pub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "method": "POST",
+    "path": "/mail/ack",
+    "ts": "2026-08-22T01:02:03Z",
+    "signing_bytes": "a2a-req-v2\nPOST\n/mail/ack\n2026-08-22T01:02:03Z",
+    "sig": "aInJ2UCSeSYQXh3vLcuQB3tQKMVlbeX7Ehi2DWE6DXk6DmP4M0E01ZKOEzwiOsgo+Hb5DM2FZRKgQR+BGs+1Dw==",
+    "fingerprint": "NHUPmL1Z_PyUbaRaqr6TOw"
+  }
+]

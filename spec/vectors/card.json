@@ -1,0 +1,17 @@
+{
+  "card": {
+    "v": 2,
+    "pk": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+    "xpk": "wwb7DvK/i3+TutmBVfo32ux02wxMvtpsbx26nTZVglI=",
+    "proxy": [
+      "https://relay.example.org",
+      "https://relay2.example.org"
+    ],
+    "name": "灵镜 A",
+    "desc": "https://a.example.org/profile.json",
+    "sig": "SoZiUrI6R8L93s/SXvDLKMOp/L7yLQiLn7BbG0VWPrbu9X3cOqlnK1ZDlt0yxL2TKt/ASS+S6hR7ppdS8C5cBQ=="
+  },
+  "signing_bytes": "a2a-card-v2\niojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=\nwwb7DvK/i3+TutmBVfo32ux02wxMvtpsbx26nTZVglI=\nhttps://relay.example.org,https://relay2.example.org\n灵镜 A\nhttps://a.example.org/profile.json",
+  "uri": "soulmirror://card?desc=https%3A%2F%2Fa.example.org%2Fprofile.json\u0026name=%E7%81%B5%E9%95%9C+A\u0026pk=iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w%3D\u0026proxy=https%3A%2F%2Frelay.example.org%2Chttps%3A%2F%2Frelay2.example.org\u0026sig=SoZiUrI6R8L93s%2FSXvDLKMOp%2FL7yLQiLn7BbG0VWPrbu9X3cOqlnK1ZDlt0yxL2TKt%2FASS%2BS6hR7ppdS8C5cBQ%3D%3D\u0026v=2\u0026xpk=wwb7DvK%2Fi3%2BTutmBVfo32ux02wxMvtpsbx26nTZVglI%3D",
+  "fingerprint": "NHUPmL1Z_PyUbaRaqr6TOw"
+}

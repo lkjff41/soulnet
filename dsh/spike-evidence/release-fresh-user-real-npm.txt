@@ -1,0 +1,31 @@
+# fresh-user check -- dsh http://127.0.0.1:3095, relay http://127.0.0.1:9395, second peer ../bin/soulnet.exe
+08:22:52.430 state: {"backend":"soulnet","state":"ready","restarts":0,"relay":"http://127.0.0.1:9395","home":"C:\\Users\\test\\AppData\\Local\\Temp\\claude\\D--chengfeng-han-startupworld-soulmirror\\67ac2cac-41e2-41aa-821b-2a12e536c7f1\\scratchpad\\soulnet-home-fresh","binary":"C:\\Users\\test\\AppData\\Local\\Temp\\claude\\D--chengfeng-han-startupworld-soulmirror\\67ac2cac-41e2-41aa-821b-2a12e536c7f1\\scratchpad\\dsh-fresh-real2\\profiles\\web\\node_modules\\soulnet-peer-windows-x64\\bin\\soulnet.exe","binarySource":"platform-package","pid":63484,"protocol":"soulnet/1","version":"0.1.0"}
+08:22:52.431 PASS backend is soulnet
+08:22:52.432 PASS backend state ready
+08:22:52.432 PASS binary resolved from the platform package: C:\Users\test\AppData\Local\Temp\claude\D--chengfeng-han-startupworld-soulmirror\67ac2cac-41e2-41aa-821b-2a12e536c7f1\scratchpad\dsh-fresh-real2\profiles\web\node_modules\soulnet-peer-windows-x64\bin\soulnet.exe
+08:22:52.432 PASS binary path is <platform package>/bin/soulnet[.exe]
+08:22:52.432 PASS relay is the local one (http://127.0.0.1:9395)
+08:22:52.433 PASS peer version reported: 0.1.0
+08:22:52.433 identity already exists: lrvFZHpaJsswTfUfcm0bgg
+08:22:52.433 PASS identity fingerprint lrvFZHpaJsswTfUfcm0bgg
+08:22:52.433 PASS card URI issued
+08:22:52.456 [Bob stderr] [soulnet] 2026/08/23 04:22:52 home=C:\Users\test\AppData\Local\Temp\dsh-fresh-bob-r5rLVH relay=http://127.0.0.1:9395 no identity yet (waiting for identity.create)
+08:22:52.458 [Bob stderr] [soulnet] 2026/08/23 04:22:52 identity created · name=Bob fingerprint=7umRu_Nz0Rrx-NBM_3YJtQ relay=http://127.0.0.1:9395
+08:22:52.459 Bob initialize -> protocol soulnet/1 version dev fp 7umRu_Nz0Rrx-NBM_3YJtQ
+08:22:52.460 [Bob stderr] [soulnet] 2026/08/23 04:22:52 receive loop started · relay=http://127.0.0.1:9395 · fingerprint=7umRu_Nz0Rrx-NBM_3YJtQ
+08:22:52.463 [Bob stderr] [soulnet] 2026/08/23 04:22:52 friend request sent to lrvFZHpa
+08:22:52.472 dsh pending: {"id":"7umRu_-1787473372461560900-000000000001","fp":"7umRu_Nz0Rrx-NBM_3YJtQ","name":"Bob","greeting":"hello from Bob","createdAt":"2026-08-23T04:22:52.4641927-04:00"}
+08:22:52.473 PASS friend request from the second peer reached dsh with its greeting
+08:22:52.481 friends.accept -> {"fp":"7umRu_Nz0Rrx-NBM_3YJtQ","name":"Bob","remark":"Bob","cardName":"Bob","unread":0,"count":0,"addedAt":"2026-08-23T04:22:52.4773908-04:00","tier":"draft"}
+08:22:52.482 [Bob stderr] [soulnet] 2026/08/23 04:22:52 lrvFZHpa accepted the friend request
+08:22:52.483 [Bob] <- friend.accepted {"kind":"friend.accepted","peer":"lrvFZHpaJsswTfUfcm0bgg","ts":"2026-08-23T04:22:52.4816732-04:00","friend":{"fingerprint":"lrvFZHpaJsswTfUfcm0bgg","note":"Fresh","protocol":"","card":{"v":2,"pk":"SGy
+08:22:52.884 PASS second peer saw friend.accepted
+08:22:52.889 Bob message.send -> {"id":"7umRu_-1787473372885140200-000000000002","seq":1,"status":"sent"}
+08:22:52.905 PASS dsh received "ping from Bob 1787473372884" (seq 1)
+08:22:52.912 [Bob] <- message.received {"kind":"message.received","peer":"lrvFZHpaJsswTfUfcm0bgg","ts":"2026-08-23T04:22:52.9120225-04:00","message":{"id":"lrvFZH-1787473372907787600-000000000004","from":"lrvFZHpaJsswTfUfcm0bgg","to":"7umR
+08:22:52.914 dsh message.send -> {"id":"lrvFZH-1787473372907787600-000000000004","status":"sent","seq":2}
+08:22:52.914 PASS second peer received "pong from Fresh 1787473372905"
+08:22:52.934 dsh friend row: {"fp":"7umRu_Nz0Rrx-NBM_3YJtQ","name":"Bob","remark":"Bob","cardName":"Bob","unread":1,"count":2,"lastTs":1787473372907,"lastBody":"pong from Fresh 1787473372905","addedAt":"2026-08-23T04:22:52.4773908-04:00","online":true,"tier":"draft"}
+08:22:52.935 PASS dsh friend row counts both messages
+08:22:52.935 Bob home C:\Users\test\AppData\Local\Temp\dsh-fresh-bob-r5rLVH (card soulmirror://card?name=Bob&pk=poPZlHSMip...)
+08:22:52.936 ALL CHECKS PASSED in 0.5s

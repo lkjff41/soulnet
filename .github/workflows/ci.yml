@@ -1,0 +1,59 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  go:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        if: runner.os != 'Windows'
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test ./...
+      - name: build binaries
+        run: |
+          go build -o bin/soulnet-relay ./cmd/soulnet-relay
+          go build -o bin/soulnet ./cmd/soulnet
+        shell: bash
+  dsh:
+    # The DeepSeek Harness plugin (soulnet-dsh) and its five
+    # platform packages: build, typecheck, unit tests, and a pack dry run with
+    # the host platform's binary so the tarball layout is exercised.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: dsh/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dsh/pnpm-lock.yaml
+      - working-directory: dsh
+        run: pnpm install --frozen-lockfile
+      - working-directory: dsh
+        run: pnpm run build
+      - working-directory: dsh
+        run: pnpm run typecheck
+      - working-directory: dsh
+        run: pnpm run test:unit
+      - name: build the host platform's peer package and pack (dry run)
+        working-directory: dsh
+        run: |
+          node scripts/build-peer-packages.mjs --current
+          node scripts/pack-all.mjs --allow-missing
+          ls -la dist

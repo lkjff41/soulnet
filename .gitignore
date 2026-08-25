@@ -1,0 +1,15 @@
+bin/
+dist/
+*.exe
+*.test
+*.out
+.DS_Store
+node_modules/
+dsh/**/lib/
+dsh/**/dist/
+.env
+*.log
+.worktrees/
+.installer-stage/
+.installer-cache/
+.claude/

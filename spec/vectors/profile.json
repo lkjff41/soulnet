@@ -1,0 +1,42 @@
+{
+  "profile": {
+    "v": 1,
+    "fingerprint": "NHUPmL1Z_PyUbaRaqr6TOw",
+    "tags": [
+      "创业",
+      "AI"
+    ],
+    "summary": "能接 BP 写作 \u0026 市场分析",
+    "distill_score": 42,
+    "skills": [
+      {
+        "id": "bp",
+        "title": "BP 写作",
+        "tags": [
+          "融资",
+          "写作"
+        ],
+        "desc": "写商业计划书",
+        "type": "private"
+      }
+    ],
+    "contexts": [
+      {
+        "title": "行业人脉",
+        "desc": "\u003credacted\u003e"
+      }
+    ],
+    "services": [
+      {
+        "name": "咨询",
+        "desc": "1 小时"
+      }
+    ],
+    "intro": "A 的分身",
+    "accepting": true,
+    "updated_at": "2026-08-22T01:02:03.123456789Z",
+    "sig": "gMMzRucuumoFB5dk0ab0yoj/gQhOrNqY4ZhqZTSoZub2dMQcfGxX/gM6cO40ly/Gy2vcyTOU5sbsI8NXLZEDBA=="
+  },
+  "ed_pub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+  "signing_bytes": "{\"v\":1,\"fingerprint\":\"NHUPmL1Z_PyUbaRaqr6TOw\",\"tags\":[\"创业\",\"AI\"],\"summary\":\"能接 BP 写作 \\u0026 市场分析\",\"distill_score\":42,\"skills\":[{\"id\":\"bp\",\"title\":\"BP 写作\",\"tags\":[\"融资\",\"写作\"],\"desc\":\"写商业计划书\",\"type\":\"private\"}],\"contexts\":[{\"title\":\"行业人脉\",\"desc\":\"\\u003credacted\\u003e\"}],\"services\":[{\"name\":\"咨询\",\"desc\":\"1 小时\"}],\"intro\":\"A 的分身\",\"accepting\":true,\"updated_at\":\"2026-08-22T01:02:03.123456789Z\"}"
+}

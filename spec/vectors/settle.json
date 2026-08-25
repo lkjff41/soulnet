@@ -1,0 +1,9 @@
+{
+  "from_fp": "NHUPmL1Z_PyUbaRaqr6TOw",
+  "to_fp": "ajgD1fBZkCocba-8m6Rykg",
+  "budget": 150,
+  "mission_id": "m-20260822-0001",
+  "signing_bytes": "settle-v1\nNHUPmL1Z_PyUbaRaqr6TOw\najgD1fBZkCocba-8m6Rykg\n150\nm-20260822-0001",
+  "from_pub": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+  "signature": "Ng+cC/0sDiaTZ5b1vWGx8O5JCcchJF+BSZ0XEXLU/EMcgc4RW/CiOiuEzbTTyIEwQUuYCzzHJVvzZEdW7s0uAw=="
+}
