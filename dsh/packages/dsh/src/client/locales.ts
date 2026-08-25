@@ -393,6 +393,7 @@ export const en = {
   'pane.members': 'Members',
   'pane.admin': 'Manage',
   'pane.info': 'Info',
+  'pane.settings': 'Settings',
   // ——— friend private home ———
   'friend.home.profile': 'Profile',
   'friend.home.fp': 'Fingerprint',
@@ -811,6 +812,7 @@ export const zh: Record<keyof typeof en, string> = {
   'pane.members': '成员',
   'pane.admin': '管理',
   'pane.info': '信息',
+  'pane.settings': '设置',
   // ——— 好友私聊主页 ———
   'friend.home.profile': '名片',
   'friend.home.fp': '指纹',

@@ -57,7 +57,7 @@ const PAGE_STORAGE_KEY = 'soulmirror.page'
 /** Debounce of the localStorage write (bursts of selection / tab changes). */
 const PERSIST_MS = 250
 
-const PANE_TABS: readonly PaneTab[] = ['chat', 'announce', 'home', 'members', 'admin', 'info']
+const PANE_TABS: readonly PaneTab[] = ['chat', 'announce', 'home', 'members', 'admin', 'info', 'settings']
 const COL2_TABS: readonly Col2Tab[] = ['contacts', 'agents', 'groups']
 
 /** The navigation state we persist, guarded for non-browser envs (unit tests run under node). */

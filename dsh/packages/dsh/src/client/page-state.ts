@@ -263,7 +263,7 @@ export function resolveSelection(friends: readonly Pick<InboxFriend, 'fp'>[], gr
 export type Col2Tab = 'contacts' | 'agents' | 'groups'
 
 /** Which panel of the third column (content area) is active. */
-export type PaneTab = 'chat' | 'announce' | 'home' | 'members' | 'admin' | 'info'
+export type PaneTab = 'chat' | 'announce' | 'home' | 'members' | 'admin' | 'info' | 'settings'
 
 /** The kind of the current selection, for tab availability. */
 export type SelectionKind = 'alter' | 'friend' | 'group' | 'agent'
@@ -284,7 +284,7 @@ export function kindOf(selected: string | undefined): SelectionKind {
  */
 export function tabsFor(kind: SelectionKind, canAdmin: boolean): PaneTab[] {
   switch (kind) {
-    case 'alter': return ['chat', 'home']
+    case 'alter': return ['chat', 'home', 'settings']
     case 'friend': return ['chat', 'home']
     case 'group': return canAdmin ? ['chat', 'announce', 'home', 'members', 'admin'] : ['chat', 'announce', 'home', 'members']
     case 'agent': return ['chat', 'info']

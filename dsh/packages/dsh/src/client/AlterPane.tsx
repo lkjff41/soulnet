@@ -248,11 +248,20 @@ export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: 
             </div>
           )
           : null}
-        {renderCards('alter.card', {
-          alter: { sessionId: alter.sessionId, status: alter.status },
-          scope,
-          openSession: () => { if (alter.sessionId !== undefined) onOpenSession(alter.sessionId) },
-        })}
+      </div>
+    </div>
+  )
+
+  // The "settings" tab is the card surface: every registered `alter.card` renders here.
+  const cardProps: AlterCardOwnerProps = {
+    alter: { sessionId: alter.sessionId, status: alter.status },
+    scope,
+    openSession: () => { if (alter.sessionId !== undefined) onOpenSession(alter.sessionId) },
+  }
+  const alterSettings = (
+    <div className="sm-home" data-soulmirror-alter-settings>
+      <div className="sm-home-inner">
+        {renderCards('alter.card', cardProps)}
       </div>
     </div>
   )
@@ -281,7 +290,7 @@ export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: 
         </div>
       </header>
       <ContentTabs tabs={tabs} active={paneTab} onChange={pageStore.setPaneTab} t={t} />
-      {paneTab === 'home' ? alterHome : <>
+      {paneTab === 'settings' ? alterSettings : paneTab === 'home' ? alterHome : <>
       {drafts.length > 0 && firstDraft !== undefined
         ? (
           <div className="sm-pendbar" data-soulmirror-alter-pendbar={drafts.length}>
