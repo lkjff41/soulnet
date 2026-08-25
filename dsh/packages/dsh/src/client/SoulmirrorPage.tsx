@@ -38,7 +38,7 @@ export interface SoulmirrorPageInjected {
 }
 
 /** The page declares (and thereby renders) the `group.room` seat; the GroupPane receives `renderSlot` as plain props. */
-export type SoulmirrorPageProps = SoulmirrorPageInjected & PropsLocale<typeof NS> & PropsRenderSlots<'group.room'>
+export type SoulmirrorPageProps = SoulmirrorPageInjected & PropsLocale<typeof NS> & PropsRenderSlots<'group.room' | 'alter.card'>
 
 /** Fallback left edge when the sidebar column cannot be found (ui-layout SIDEBAR_DEFAULT). */
 const SIDEBAR_FALLBACK = 280
@@ -177,7 +177,7 @@ export function SoulmirrorPage({ openSession, scope, t, renderSlot }: Soulmirror
           ? <GroupPane t={t} group={group} visible={page.open} onGoAlter={goAlter} renderRoom={renderSlot} />
           : seatAgent !== undefined
             ? <AgentPane t={t} agent={seatAgent} onOpenSession={openAlterSession} onRemoved={goAlter} />
-            : <AlterPane t={t} onOpenSession={openAlterSession} onGoFriend={goFriend} />}
+            : <AlterPane t={t} onOpenSession={openAlterSession} onGoFriend={goFriend} renderCards={renderSlot} scope={scope} />}
     </div>
   )
 }

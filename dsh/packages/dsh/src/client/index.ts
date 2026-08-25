@@ -34,8 +34,11 @@ import { a2aRelayDefinition } from './a2a-node.ts'
 import { A2ANode } from './A2ANode.tsx'
 import { installBranding } from './Branding.tsx'
 import { api } from './api.ts'
-// Value import of the SlotMap merge module: keeps the `group.room` declaration in the bundle.
+// Value import of the SlotMap merge modules: keeps the `group.room` and
+// `alter.card` declarations in the bundle.
 import type {} from './group-room.ts'
+import type {} from './alter-card.ts'
+import { AlterSettingsCard } from './AlterSettingsCard.tsx'
 import { InboxOverlay, type InboxOverlayInjected } from './InboxOverlay.tsx'
 import { en, NS, zh } from './locales.ts'
 import { ChatRoom } from './rooms/ChatRoom.tsx'
@@ -129,10 +132,10 @@ export function apply(ctx: ClientContext): void {
     id: 'soulmirror-page',
     order: 40,
     locale: NS,
-    // The page declares the `group.room` seat (src/client/group-room.ts): rooms
-    // are the pluggable applications rendering a group; the GroupPane dispatches
-    // on the group profile's `room` key.
-    children: { 'group.room': { kind: 'keyed', scope: 'root' } },
+    // The page declares the `group.room` seat (rooms: the pluggable apps
+    // rendering a group) AND the `alter.card` seat (cards: the pluggable
+    // modules on the alter's home tab).
+    children: { 'group.room': { kind: 'keyed', scope: 'root' }, 'alter.card': { kind: 'list', scope: 'root' } },
     inject: pageInjected,
   }, SoulmirrorPage))
 
@@ -144,6 +147,16 @@ export function apply(ctx: ClientContext): void {
     key: 'chat',
     locale: NS,
   }, ChatRoom))
+
+  // 2c-ter. The built-in alter cards: the alter's own settings (and, later,
+  //         memory / skills / group-memory …) are pluggable cards on the alter's
+  //         home tab — a third-party dsh plugin adds another card by registering
+  //         into `alter.card` the same way.
+  ctx.slots.inject('alter.card', () => ctx.slots.register({
+    name: 'alter.card',
+    id: 'settings',
+    locale: NS,
+  }, AlterSettingsCard))
 
   // 2d. … and the new-mail toast (mail while the alter session is not on
   //     screen and the friend's thread is not open on the page).

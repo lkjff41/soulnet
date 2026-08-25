@@ -410,6 +410,7 @@ export const en = {
   'alter.home.defaultTier': 'Default reply tier',
   'alter.home.perHour': 'Auto-replies per hour',
   'alter.home.actions': 'Actions',
+  'alter.card.settings': 'Alter settings',
   'alter.home.none': '—',
   // ——— agent home ———
   'agent.home.profile': 'Profile',
@@ -827,6 +828,7 @@ export const zh: Record<keyof typeof en, string> = {
   'alter.home.defaultTier': '默认回复档位',
   'alter.home.perHour': '每小时自动回复上限',
   'alter.home.actions': '操作',
+  'alter.card.settings': '分身设置',
   'alter.home.none': '—',
   // ——— 智能体主页 ———
   'agent.home.profile': '档案',

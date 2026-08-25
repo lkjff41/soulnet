@@ -10,9 +10,13 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import { networkStore, type ApiChatItem } from './api.ts'
+import type { AlterCardOwnerProps } from './alter-card.ts'
 import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
+import type { SoulmirrorSettingsValues } from './SettingsSection.tsx'
 import type { Translate } from './translate.ts'
 import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
 import { pageStore } from './page-store.ts'
@@ -24,6 +28,10 @@ export interface AlterPaneProps {
   onOpenSession: (sessionId: string) => void
   /** Jump to a friend's read-only thread. */
   onGoFriend: (fp: string) => void
+  /** The page's `alter.card` render authorization, handed down as plain props. */
+  renderCards: PropsRenderSlots<'alter.card'>['renderSlot']
+  /** Live `soulmirror` settings scope for the cards. */
+  scope: SettingsScope<SoulmirrorSettingsValues>
 }
 
 /** How close to the bottom (px) counts as "following" — new items auto-scroll only then. */
@@ -38,7 +46,7 @@ function dayOf(ts: number): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
-export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
+export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: AlterPaneProps) {
   const page = useSyncExternalStore(pageStore.subscribe, pageStore.getSnapshot)
   const net = useSyncExternalStore(networkStore.subscribe, networkStore.getSnapshot)
   const alter = page.alter
@@ -240,6 +248,11 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             </div>
           )
           : null}
+        {renderCards('alter.card', {
+          alter: { sessionId: alter.sessionId, status: alter.status },
+          scope,
+          openSession: () => { if (alter.sessionId !== undefined) onOpenSession(alter.sessionId) },
+        })}
       </div>
     </div>
   )
