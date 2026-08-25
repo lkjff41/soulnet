@@ -257,6 +257,43 @@ export function resolveSelection(friends: readonly Pick<InboxFriend, 'fp'>[], gr
   return friends.some(f => f.fp === selected) ? selected : ALTER_KEY
 }
 
+// ——— page tabs (col2 = second column, pane = third column body) ———
+
+/** Which section the second column (friend list) shows. */
+export type Col2Tab = 'contacts' | 'agents' | 'groups'
+
+/** Which panel of the third column (content area) is active. */
+export type PaneTab = 'chat' | 'announce' | 'home' | 'members' | 'admin' | 'info'
+
+/** The kind of the current selection, for tab availability. */
+export type SelectionKind = 'alter' | 'friend' | 'group' | 'agent'
+
+export function kindOf(selected: string | undefined): SelectionKind {
+  if (selected === undefined || selected === ALTER_KEY) return 'alter'
+  if (gidOf(selected) !== undefined) return 'group'
+  if (agentOf(selected) !== undefined) return 'agent'
+  return 'friend'
+}
+
+/**
+ * The tab set the third column offers for a selection. `admin` (group
+ * management) is group-owner/admin only; the rest follow the product's rows:
+ * a friend has chat + home, a group has chat / announce / home / members
+ * (+ admin). `agent` adds a lightweight `info` tab. Extra modules (group
+ * memory, per-agent memory) slot in here later.
+ */
+export function tabsFor(kind: SelectionKind, canAdmin: boolean): PaneTab[] {
+  switch (kind) {
+    case 'alter': return ['chat', 'home']
+    case 'friend': return ['chat', 'home']
+    case 'group': return canAdmin ? ['chat', 'announce', 'home', 'members', 'admin'] : ['chat', 'announce', 'home', 'members']
+    case 'agent': return ['chat', 'info']
+  }
+}
+
+/** The default tab when a selection is entered. */
+export const DEFAULT_PANE_TAB: PaneTab = 'chat'
+
 // ——— bubble helpers ———
 
 /** Local calendar day key (YYYY-MM-DD) for the day separators. */

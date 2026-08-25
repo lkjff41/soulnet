@@ -11,8 +11,8 @@
  */
 import { api, networkStore, type ApiChat, type NetworkEventFrame } from './api.ts'
 import {
-  addOptimistic, agentOf, ALTER_KEY, applyArchive, applyInbound, applyOutbound, dropEntry, EMPTY_THREAD, failSend, gidOf, groupKey, PAGE_SIZE, reconcileSend,
-  type ThreadState,
+  addOptimistic, agentOf, ALTER_KEY, applyArchive, applyInbound, applyOutbound, DEFAULT_PANE_TAB, dropEntry, EMPTY_THREAD, failSend, gidOf, groupKey, PAGE_SIZE, reconcileSend,
+  type Col2Tab, type PaneTab, type ThreadState,
 } from './page-state.ts'
 
 /** The alter transcript as the page holds it (P4). */
@@ -33,6 +33,10 @@ export interface PageSnapshot {
   readonly open: boolean
   /** Selection: `ALTER_KEY` or a friend fingerprint (may point at a friend that is gone; the page resolves it). */
   readonly selected: string | undefined
+  /** Which section the second column shows. */
+  readonly col2Tab: Col2Tab
+  /** Which panel of the third column (content area) is active. */
+  readonly paneTab: PaneTab
   /** fp → thread (only for friends whose archive was fetched at least once). */
   readonly threads: Readonly<Record<string, ThreadState>>
   readonly alter: AlterView
@@ -49,7 +53,7 @@ const HISTORY_REFETCH_MS = 120
 export const HISTORY_LIMIT = 200
 
 export class PageStore {
-  private snapshot: PageSnapshot = { open: false, selected: undefined, threads: {}, alter: EMPTY_ALTER, deciding: [] }
+  private snapshot: PageSnapshot = { open: false, selected: undefined, col2Tab: 'contacts', paneTab: DEFAULT_PANE_TAB, threads: {}, alter: EMPTY_ALTER, deciding: [] }
   private readonly listeners = new Set<() => void>()
   private readonly typingSentAt = new Map<string, number>()
   private readonly typingIdle = new Map<string, ReturnType<typeof setTimeout>>()
@@ -178,9 +182,15 @@ export class PageStore {
 
   select = (selection: string): void => {
     if (selection === this.snapshot.selected) return
-    this.set({ selected: selection })
+    this.set({ selected: selection, paneTab: DEFAULT_PANE_TAB })
     this.prime(selection)
   }
+
+  /** Switch the second-column section (contacts / agents / groups). */
+  setCol2Tab = (tab: Col2Tab): void => { if (tab !== this.snapshot.col2Tab) this.set({ col2Tab: tab }) }
+
+  /** Switch the third-column panel (chat / announce / home / members / admin / info). */
+  setPaneTab = (tab: PaneTab): void => { if (tab !== this.snapshot.paneTab) this.set({ paneTab: tab }) }
 
   /** Fetch what the selection needs (the transcript for the alter, the archive for a friend or group). */
   private prime(selection: string): void {

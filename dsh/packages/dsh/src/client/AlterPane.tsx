@@ -11,9 +11,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { networkStore, type ApiChatItem } from './api.ts'
+import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
 import type { Translate } from './translate.ts'
-import { formatClock, formatDay } from './page-state.ts'
+import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
 import { pageStore } from './page-store.ts'
 import { SoulMirrorIcon } from './SidebarEntry.tsx'
 
@@ -179,6 +180,43 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
 
   const firstDraft = drafts[0]
 
+  const paneTab: PaneTab = page.paneTab
+  const tabs = tabsFor('alter', false)
+  const alterHome = (
+    <div className="sm-home" data-soulmirror-alter-home>
+      <div className="sm-home-inner">
+        <div className="sm-home-id">
+          <span className="sm-avatar sm-avatar-alter sm-avatar-lg" aria-hidden><SoulMirrorIcon size={18} /></span>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span className="sm-home-id-name">{t('alter.me')}</span>
+            <span className="sm-home-id-sub">
+              <span className={`sm-livedot${running ? ' sm-busy' : ''}`} aria-hidden />
+              <span>{alter.sessionId === undefined ? t('alter.status.noSession') : running ? t('alter.status.running') : t('alter.status.idle')}</span>
+            </span>
+          </div>
+        </div>
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('alter.home.profile')}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.session')}</span><span className="sm-home-line-val">{alter.sessionId ?? t('alter.home.none')}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.friends')}</span><span className="sm-home-line-val">{friends.length}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.drafts')}</span><span className="sm-home-line-val">{drafts.length}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.defaultTier')}</span><span className="sm-home-line-val">{t(`tier.short.${net.state?.alter?.defaultTier ?? 'draft'}`)}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.perHour')}</span><span className="sm-home-line-val">{net.state?.alter?.autoReplyPerHour ?? 20}</span></div>
+        </div>
+        {alter.sessionId !== undefined
+          ? (
+            <div className="sm-home-card">
+              <div className="sm-home-title"><span>{t('alter.home.actions')}</span></div>
+              <button type="button" className="sm-ghostbtn" onClick={() => { onOpenSession(alter.sessionId!) }} data-soulmirror-alter-open-dsh>
+                <IconRightUpOutline14 size={14} /> {t('alter.openDsh')}
+              </button>
+            </div>
+          )
+          : null}
+      </div>
+    </div>
+  )
+
   return (
     <section className="sm-chat-col" data-soulmirror-page-chat="alter" data-soulmirror-alter-status={running ? 'running' : 'idle'} style={{ position: 'relative' }}>
       <header className="sm-chat-head">
@@ -202,6 +240,8 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             : null}
         </div>
       </header>
+      <ContentTabs tabs={tabs} active={paneTab} onChange={pageStore.setPaneTab} t={t} />
+      {paneTab === 'home' ? alterHome : <>
       {drafts.length > 0 && firstDraft !== undefined
         ? (
           <div className="sm-pendbar" data-soulmirror-alter-pendbar={drafts.length}>
@@ -257,6 +297,7 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
         </div>
         <span className="sm-composer-hint">{t('alter.composer.hint')}</span>
       </div>
+      </>}
     </section>
   )
 }

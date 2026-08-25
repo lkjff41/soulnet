@@ -14,10 +14,11 @@ import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } fr
 import { Button, IconCheckOutline14, IconCopyOutline16, IconSendOutline16, IconUserOutline16, Tooltip, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import { FriendSettingsPanel } from './alter-ui.tsx'
 import { api, networkStore } from './api.ts'
+import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
 import type { Translate } from './translate.ts'
 import { draftsFor, formatAge, type InboxFriend } from './inbox-state.ts'
-import { formatClock, formatDay, withDaySeparators, type ThreadEntry, type ThreadState } from './page-state.ts'
+import { formatClock, formatDay, tabsFor, type PaneTab, withDaySeparators, type ThreadEntry, type ThreadState } from './page-state.ts'
 import { pageStore } from './page-store.ts'
 
 export interface FriendPaneProps {
@@ -169,6 +170,61 @@ export function FriendPane({ t, friend, visible, onGoAlter, directSend }: Friend
     void pageStore.send(fp, text)
   }
 
+  const paneTab: PaneTab = page.paneTab
+  const tabs = tabsFor('friend', false)
+
+  // Private home (a friend's own page): identity card + quick actions.
+  const friendHome = (
+    <div className="sm-home" data-soulmirror-friend-home>
+      <div className="sm-home-inner">
+        <div className="sm-home-id">
+          <span className="sm-avatar sm-avatar-lg" aria-hidden>{friend.name.slice(0, 1)}</span>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span className="sm-home-id-name">{friend.name}</span>
+            <span className="sm-home-id-sub">
+              <span className={`sm-presence${friend.online === true ? ' sm-online' : ''}`} />
+              <span>{friend.online === true ? t('page.header.online') : t('page.header.offline')}</span>
+              {friend.tier !== undefined && friend.tier !== 'draft' ? <span> · {t(`tier.short.${friend.tier}`)}</span> : null}
+            </span>
+          </div>
+        </div>
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('friend.home.profile')}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.fp')}</span><span className="sm-home-line-val" data-soulmirror-friend-fp>{fp}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.name')}</span><span className="sm-home-line-val">{friend.cardName ?? friend.name}</span></div>
+          {note !== undefined ? <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.remark')}</span><span className="sm-home-line-val">{note}</span></div> : null}
+          {friend.protocol !== undefined && friend.protocol !== '' ? <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.protocol')}</span><span className="sm-home-line-val">{friend.protocol}</span></div> : null}
+          {age !== '' ? <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.lastActive')}</span><span className="sm-home-line-val">{age}</span></div> : null}
+          {drafts.length > 0 ? <div className="sm-home-line"><span className="sm-home-line-key">{t('friend.home.drafts')}</span><span className="sm-home-line-val sm-alert">{drafts.length}</span></div> : null}
+        </div>
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('friend.home.actions')}</span></div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button type="button" className="sm-ghostbtn" onClick={() => { setCardOpen(v => !v) }}><IconUserOutline16 size={14} /> {t('page.header.card')}</button>
+            <button type="button" className="sm-ghostbtn" onClick={() => { pageStore.setPaneTab('chat'); setCardOpen(true) }}><IconCopyOutline16 size={14} /> {t('page.header.card.copy')}</button>
+            <button type="button" className="sm-ghostbtn" aria-expanded={settingsOpen} onClick={() => { setSettingsOpen(v => !v) }}>{t('friend.actbar.settings')}</button>
+            <Button variant="primary" size="sm" onClick={onGoAlter}>{t('friend.actbar.goAlter')}</Button>
+          </div>
+        </div>
+        {settingsOpen
+          ? (
+            <FriendSettingsPanel
+              fp={fp}
+              name={friend.name}
+              tier={friend.tier}
+              tierExplicit={friend.tierExplicit === true}
+              protocol={friend.protocol}
+              defaultTier={alterConfig?.defaultTier ?? 'draft'}
+              perHour={alterConfig?.autoReplyPerHour ?? 20}
+              t={t}
+              onClose={() => { setSettingsOpen(false) }}
+            />
+          )
+          : null}
+      </div>
+    </div>
+  )
+
   return (
     <section className="sm-chat-col" data-soulmirror-page-chat={fp} data-soulmirror-readonly style={{ position: 'relative' }}>
       <header className="sm-chat-head">
@@ -190,6 +246,8 @@ export function FriendPane({ t, friend, visible, onGoAlter, directSend }: Friend
           </button>
         </div>
       </header>
+      <ContentTabs tabs={tabs} active={paneTab} onChange={pageStore.setPaneTab} t={t} />
+      {paneTab === 'home' ? friendHome : <>
       <div className="sm-banner" role="note" data-soulmirror-readonly-banner>
         <span>{t('friend.banner.prefix')}<b>{t('friend.banner.mine')}</b>{t('friend.banner.middle')}<b>{t('friend.banner.theirs', { name: friend.name })}</b>{t('friend.banner.suffix')}</span>
         <button type="button" className="sm-ghostbtn" onClick={onGoAlter} data-soulmirror-banner-go>{t('friend.banner.go')}</button>
@@ -312,6 +370,7 @@ export function FriendPane({ t, friend, visible, onGoAlter, directSend }: Friend
         </Tooltip>
         <Button variant="primary" size="sm" onClick={onGoAlter} data-soulmirror-actbar-go-alter>{t('friend.actbar.goAlter')}</Button>
       </div>
+      </>}
     </section>
   )
 }

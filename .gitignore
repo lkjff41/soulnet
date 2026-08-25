@@ -13,3 +13,6 @@ dsh/**/dist/
 .installer-stage/
 .installer-cache/
 .claude/
+.dev/
+temp/
+.vscode/

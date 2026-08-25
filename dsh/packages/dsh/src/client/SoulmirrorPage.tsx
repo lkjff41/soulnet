@@ -119,6 +119,24 @@ export function SoulmirrorPage({ openSession, scope, t, renderSlot }: Soulmirror
     return () => { document.removeEventListener('keydown', onKey) }
   }, [page.open])
 
+  // Clicking dsh's own sidebar (anywhere outside the page) returns to the
+  // normal dsh workspace. The SoulMirror footer button that toggles the page
+  // is excluded (it handles its own open/close).
+  useEffect(() => {
+    if (!page.open) return
+    const onDown = (e: MouseEvent): void => {
+      const rootEl = root.current
+      if (rootEl === null) return
+      const target = e.target instanceof Node ? e.target : (e.target as Element | null)
+      if (target === null) return
+      if (rootEl.contains(target)) return
+      if ((target as Element | null)?.closest?.('[data-soulmirror-footer]') != null) return
+      pageStore.close()
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => { document.removeEventListener('mousedown', onDown) }
+  }, [page.open])
+
   // Warm every thread while the page is open so clicking a row is always a cache
   // hit and the content search has archives to look through (guarded; loaded
   // threads are skipped).
