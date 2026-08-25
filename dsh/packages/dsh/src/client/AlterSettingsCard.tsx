@@ -6,7 +6,7 @@
  * `soulmirror` settings namespace through `scope`.
  */
 import { useCallback, useSyncExternalStore } from 'react'
-import { TIERS, tierLabel } from './alter-ui.tsx'
+import { ProtocolEditor, TIERS, tierLabel } from './alter-ui.tsx'
 import type { AlterCardOwnerProps } from './alter-card.ts'
 import type { ReplyTier } from './api.ts'
 import type { Translate } from './translate.ts'
@@ -62,6 +62,7 @@ export function AlterSettingsCard({ scope, t }: AlterCardOwnerProps & { t: Trans
           </select>
         </Field>
         <span style={{ fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' }}>{t('settings.alter.alterMode.hint')}</span>
+        <ProtocolEditor t={t} />
       </div>
     </div>
   )

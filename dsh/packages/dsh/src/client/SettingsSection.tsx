@@ -13,7 +13,6 @@ import type { CSSProperties } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
-import { ProtocolEditor } from './alter-ui.tsx'
 import { api, networkStore, type ApiPending, type ReplyTier } from './api.ts'
 import type { NS } from './locales.ts'
 import { pageStore } from './page-store.ts'
@@ -241,7 +240,6 @@ export function SoulmirrorSettingsSection({ openSession, scope, t }: SoulmirrorS
           <input type="checkbox" checked={directSend} disabled={!writable} onChange={(e) => { void scope.set('directSend', e.target.checked).catch(() => {}) }} data-soulmirror-setting="directSend" />
           <span>{t('settings.alter.directSend')}</span>
         </label>
-        <ProtocolEditor t={t} />
       </div>
 
 
