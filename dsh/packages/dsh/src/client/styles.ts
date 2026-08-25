@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The rules the SoulMirror surfaces need that inline styles cannot express
  * (hover / focus chrome, the unread dot, the rail circle, bubbles, the typing
  * dots, the three-column page, the draft cards). The client bundle has no
@@ -196,7 +196,7 @@ const CSS = `
 .sm-empty p { margin: 0; max-width: 420px; font-size: 12.5px; }
 .sm-card-pop {
   position: absolute; right: 16px; top: 60px; z-index: 2; width: min(420px, calc(100% - 32px)); padding: 10px 12px; box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 12px; background: var(--dsw-specific-menu); box-shadow: var(--dsw-shadow-lv3);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3);
   display: grid; gap: 6px; font-size: 12px;
 }
 .sm-card-uri { font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 11px; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); max-height: 96px; overflow: auto; }
@@ -307,7 +307,7 @@ const CSS = `
 
 /* ——— the create-group dialog ——— */
 .sm-modal-backdrop { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, .28); display: flex; align-items: center; justify-content: center; animation: sm-page-in 100ms ease-out; }
-.sm-modal { width: min(460px, calc(100% - 48px)); max-height: min(660px, calc(100% - 48px)); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-specific-menu, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3); padding: 16px 18px; display: grid; gap: 12px; font-size: 12.5px; }
+.sm-modal { width: min(460px, calc(100% - 48px)); max-height: min(660px, calc(100% - 48px)); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3); padding: 16px 18px; display: grid; gap: 12px; font-size: 12.5px; }
 .sm-modal-head { display: flex; align-items: center; gap: 8px; }
 .sm-modal-title { flex: 1; font-size: 15px; font-weight: 600; }
 .sm-field { display: grid; gap: 4px; }
@@ -339,7 +339,7 @@ const CSS = `
 /* ——— search results panel (names + message content, matches highlighted) ——— */
 .sm-search-pop {
   position: absolute; top: 34px; left: 8px; right: 8px; z-index: 33; max-height: min(420px, 60vh); overflow-y: auto;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 12px; background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
   box-shadow: var(--dsw-shadow-lv3); display: grid; padding: 4px; box-sizing: border-box;
 }
 .sm-search-hit {
@@ -354,7 +354,7 @@ const CSS = `
 .sm-plusmenu-wrap { position: relative; flex: none; }
 .sm-plusmenu {
   position: absolute; top: 30px; right: 0; z-index: 32; min-width: 160px; padding: 4px; box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 10px; background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
   box-shadow: var(--dsw-shadow-lv3); display: grid; gap: 1px;
 }
 .sm-plusmenu button {
