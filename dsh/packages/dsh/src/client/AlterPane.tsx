@@ -13,7 +13,6 @@ import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deeps
 import { networkStore, type ApiChatItem } from './api.ts'
 import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
-import { ProcessItemView } from './process-ui.tsx'
 import type { Translate } from './translate.ts'
 import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
 import { pageStore } from './page-store.ts'
@@ -47,7 +46,6 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   const drafts = net.inbox.drafts
   const running = alter.status === 'running' || alter.chat.running || alter.instructing
   const [draft, setDraft] = useState('')
-  const [openThinking, setOpenThinking] = useState<ReadonlySet<string>>(new Set())
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
@@ -62,10 +60,12 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   useLayoutEffect(() => {
     const el = scroller.current
     if (el === null) return
-    if (firstPaint.current) {
-      // Open the transcript from the TOP (read the conversation from its start),
-      // then only follow new messages once the user is at the bottom — the same
-      // shape as a dsh thread.
+    if (firstPaint.current && items.length > 0) {
+      // Open the transcript from the TOP the first time there is content (read
+      // the conversation from its start), then only follow new messages once the
+      // user is at the bottom — the same shape as a dsh thread. Waiting for the
+      // first non-empty items matters: on mount the transcript is still loading,
+      // and scrolling then would be a no-op (the later load would snap down).
       firstPaint.current = false
       el.scrollTop = 0
       return
@@ -185,21 +185,20 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
           </div>
         )
       case 'thinking':
+        return (
+          <div className="sm-citem sm-wide" data-soulmirror-alter-item="thinking" data-soulmirror-thinking={item.streaming ? 'streaming' : 'done'}>
+            <div style={{ fontSize: 12, opacity: 0.6, fontStyle: 'italic', whiteSpace: 'pre-wrap', borderLeft: '2px solid rgba(127,127,127,.4)', padding: '2px 10px', margin: '2px 0 2px 12px', maxWidth: '100%' }}>
+              💭 {item.text}
+            </div>
+          </div>
+        )
       case 'tool':
         return (
-          <ProcessItemView
-            item={item}
-            t={t}
-            open={openThinking.has(item.key)}
-            onToggle={(key) => {
-              setOpenThinking((prev) => {
-                const next = new Set(prev)
-                if (next.has(key)) next.delete(key)
-                else next.add(key)
-                return next
-              })
-            }}
-          />
+          <div className="sm-citem sm-wide" data-soulmirror-alter-item="tool">
+            <div style={{ fontSize: 12, opacity: 0.7, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', padding: '1px 4px', wordBreak: 'break-all' }}>
+              🔧 {item.name} <span style={{ opacity: 0.7 }}>{item.args}</span>
+            </div>
+          </div>
         )
       default:
         return <></>

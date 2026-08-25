@@ -378,6 +378,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const client: NetworkClient = ctx.soulmirror
   const home: string = ctx.soulmirrorHome
   const a2aDir = join(home, 'a2a')
+  const mirrorDir = join(dshHome(), '灵镜') // alter session cwd + its 灵镜 dsh workspace, under \
   const mapPath = join(a2aDir, MAP_FILE)
   const presetId = config.preset ?? PRESET_ID
   const unreadInTitle = config.unreadInTitle ?? true
@@ -735,7 +736,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (agentOptions === undefined) log('warn', `no default model (agentDefaultModel); session ${sessionId} cannot run turns until one is selected`)
     const handle = await ctx.agents.create({
       sessionId,
-      meta: { cwd: a2aDir, ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }) },
+      meta: { cwd: mirrorDir, ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }) },
       setup: composition.setup,
       ...(agentOptions === undefined ? {} : { agentOptions }),
     })
@@ -751,7 +752,8 @@ export function apply(ctx: Context, config: Config = {}): void {
     const registry = ctx.get('workspaceRegistry') as { create(path: string, title?: string): Promise<{ attachSession(id: SessionId): Promise<void> }> } | undefined
     if (registry === undefined) return
     try {
-      const ws = await registry.create(a2aDir, WORKSPACE_TITLE)
+      await mkdir(mirrorDir, { recursive: true })
+      const ws = await registry.create(mirrorDir, WORKSPACE_TITLE)
       await ws.attachSession(sessionId)
       log('info', 'attached alter session ' + sessionId + ' to dsh workspace "' + WORKSPACE_TITLE + '" (' + a2aDir + ')')
     } catch (error: unknown) {
