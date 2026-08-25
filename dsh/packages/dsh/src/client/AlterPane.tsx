@@ -58,9 +58,18 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   }, [])
 
   const items = alter.chat.items
+  const firstPaint = useRef(true)
   useLayoutEffect(() => {
     const el = scroller.current
     if (el === null) return
+    if (firstPaint.current) {
+      // Open the transcript from the TOP (read the conversation from its start),
+      // then only follow new messages once the user is at the bottom — the same
+      // shape as a dsh thread.
+      firstPaint.current = false
+      el.scrollTop = 0
+      return
+    }
     if (following.current) el.scrollTop = el.scrollHeight
   }, [items, drafts.length, running])
 
