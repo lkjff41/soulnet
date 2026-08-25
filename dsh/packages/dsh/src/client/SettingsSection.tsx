@@ -29,6 +29,8 @@ export interface SoulmirrorSettingsValues {
   defaultTier?: ReplyTier
   autoReplyPerHour?: number
   directSend?: boolean
+  /** 'comms' = SoulMirror-only preset; 'full' = dsh standard preset (shell/files). */
+  alterMode?: 'comms' | 'full'
 }
 
 export interface SoulmirrorSettingsInjected {
@@ -230,6 +232,8 @@ export function SoulmirrorSettingsSection({ openSession, scope, t }: SoulmirrorS
         <p style={small}>{t('settings.alter.intro')}</p>
         <SettingField label={t('settings.alter.defaultTier')} field="defaultTier" scope={scope} values={settings.value} user={userLayer} writable={writable} type="select" options={TIERS} optionLabel={(o) => tierLabel(t, o as ReplyTier)} />
         <SettingField label={t('settings.alter.perHour')} field="autoReplyPerHour" scope={scope} values={settings.value} user={userLayer} writable={writable} type="number" min={0} />
+        <SettingField label={t('settings.alter.alterMode')} field="alterMode" scope={scope} values={settings.value} user={userLayer} writable={writable} type="select" options={['comms', 'full']} optionLabel={(o) => t(o === 'full' ? 'settings.alter.alterMode.full' : 'settings.alter.alterMode.comms')} />
+        <p style={small}>{t('settings.alter.alterMode.hint')}</p>
         <div style={rowStyle}>
           <button type="button" onClick={() => { pageStore.open('alter') }} data-soulmirror-settings-open-page>{t('settings.alter.openPage')}</button>
           {state?.alter?.sessionId != null ? <button type="button" onClick={() => { openSession(state.alter!.sessionId!) }} data-soulmirror-settings-open-alter-session>{t('settings.alter.openSession')}</button> : null}

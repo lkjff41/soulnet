@@ -414,10 +414,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
 
   /** Live settings of the `soulmirror` namespace (the network plugin provides them); defaults when absent. */
-  const settings = (): Pick<SoulmirrorSettings, 'defaultTier' | 'autoReplyPerHour'> => {
+  const settings = (): Pick<SoulmirrorSettings, 'defaultTier' | 'autoReplyPerHour' | 'alterMode'> => {
     const live = (ctx as unknown as { get(name: string): unknown }).get('soulmirrorConfig') as { current(): SoulmirrorSettings } | undefined
     const current = live?.current()
-    return { defaultTier: current?.defaultTier ?? DEFAULT_REPLY_TIER, autoReplyPerHour: current?.autoReplyPerHour ?? DEFAULT_AUTO_REPLY_PER_HOUR }
+    return { defaultTier: current?.defaultTier ?? DEFAULT_REPLY_TIER, autoReplyPerHour: current?.autoReplyPerHour ?? DEFAULT_AUTO_REPLY_PER_HOUR, alterMode: current?.alterMode === 'full' ? 'full' : 'comms' }
   }
 
   /**
@@ -653,7 +653,8 @@ export function apply(ctx: Context, config: Config = {}): void {
     let agentPreset: string | undefined
     if (presets !== undefined) {
       try {
-        const resolved = await presets.resolve(presetId)
+        const presetForMode = config.preset ?? (settings().alterMode === 'full' ? 'standard' : presetId)
+        const resolved = await presets.resolve(presetForMode)
         if (resolved.broken !== undefined) throw new Error(resolved.broken)
         agentPreset = resolved.id
         mount = async (agentCtx: Context) => {
