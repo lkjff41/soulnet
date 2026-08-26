@@ -78,7 +78,7 @@ export function AgentSettingsSheet({ t, agent, onClose, onSaved, onRemoved }: {
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.85em' }}>
           <span style={{ opacity: 0.8 }}>{t('settings.agents.cwd')}</span>
-          <input style={field} value={cwd} onChange={e => { setCwd(e.target.value) }} data-soulmirror-agent-cwd />
+          <input style={field} value={cwd} placeholder={t('settings.agents.cwdHint')} onChange={e => { setCwd(e.target.value) }} data-soulmirror-agent-cwd />
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.85em' }}>
           <span style={{ opacity: 0.8 }}>{t('settings.agents.preset')}</span>
