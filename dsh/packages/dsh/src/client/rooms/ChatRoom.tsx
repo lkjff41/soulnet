@@ -478,6 +478,10 @@ export function ChatRoom({ gid, group, me, members, thread, actions, canSpeakHum
                   onBlur={() => { setTimeout(() => { setMention(undefined) }, 120) }}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape' && mention !== undefined) {
+                      // This Escape means "close the popup" - it must not bubble
+                      // on to the page-level listener that closes SoulMirror.
+                      e.preventDefault()
+                      e.stopPropagation()
                       setMention(undefined)
                       return
                     }
