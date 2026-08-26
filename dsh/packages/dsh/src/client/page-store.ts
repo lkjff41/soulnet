@@ -11,8 +11,8 @@
  */
 import { api, networkStore, type ApiChat, type NetworkEventFrame } from './api.ts'
 import {
-  addOptimistic, agentOf, ALTER_KEY, applyArchive, applyInbound, applyOutbound, dropEntry, EMPTY_THREAD, failSend, gidOf, groupKey, PAGE_SIZE, reconcileSend,
-  type ThreadState,
+  addOptimistic, agentOf, ALTER_KEY, applyArchive, applyInbound, applyOutbound, DEFAULT_PANE_TAB, dropEntry, EMPTY_THREAD, failSend, gidOf, groupKey, kindOf, PAGE_SIZE, reconcileSend, tabsFor,
+  type Col2Tab, type PaneTab, type ThreadState,
 } from './page-state.ts'
 
 /** The alter transcript as the page holds it (P4). */
@@ -33,6 +33,10 @@ export interface PageSnapshot {
   readonly open: boolean
   /** Selection: `ALTER_KEY` or a friend fingerprint (may point at a friend that is gone; the page resolves it). */
   readonly selected: string | undefined
+  /** Which section the second column shows. */
+  readonly col2Tab: Col2Tab
+  /** Which panel of the third column (content area) is active. */
+  readonly paneTab: PaneTab
   /** fp → thread (only for friends whose archive was fetched at least once). */
   readonly threads: Readonly<Record<string, ThreadState>>
   readonly alter: AlterView
@@ -48,13 +52,55 @@ const HISTORY_REFETCH_MS = 120
 /** Items of the transcript fetched per load. */
 export const HISTORY_LIMIT = 200
 
+/** localStorage key for the page's navigation state (survives a refresh). */
+const PAGE_STORAGE_KEY = 'soulmirror.page'
+/** Debounce of the localStorage write (bursts of selection / tab changes). */
+const PERSIST_MS = 250
+
+const PANE_TABS: readonly PaneTab[] = ['chat', 'announce', 'home', 'members', 'admin', 'info', 'settings']
+const COL2_TABS: readonly Col2Tab[] = ['contacts', 'agents', 'groups']
+
+/**
+ * A persisted `paneTab` only makes sense for the selection it was saved under:
+ * the friend it belonged to may be gone (the page then falls back to the alter,
+ * whose tab set has no `members`), leaving the strip with nothing highlighted
+ * and the body on a silent fallback. Clamp to what this selection offers.
+ * `canAdmin` is false here on purpose — the roster is not loaded yet, so a
+ * restored `admin` tab must not paint group management for a plain member.
+ */
+function clampPaneTab(tab: unknown, selected: string | undefined): PaneTab {
+  if (!PANE_TABS.includes(tab as PaneTab)) return DEFAULT_PANE_TAB
+  return tabsFor(kindOf(selected), false).includes(tab as PaneTab) ? tab as PaneTab : DEFAULT_PANE_TAB
+}
+
+/** The navigation state we persist, guarded for non-browser envs (unit tests run under node). */
+function loadPersistedPage(): Pick<PageSnapshot, 'open' | 'selected' | 'col2Tab' | 'paneTab'> {
+  const fallback = { open: false, selected: undefined, col2Tab: 'contacts' as Col2Tab, paneTab: DEFAULT_PANE_TAB as PaneTab }
+  try {
+    if (typeof localStorage === 'undefined') return fallback
+    const raw = localStorage.getItem(PAGE_STORAGE_KEY)
+    if (raw === null) return fallback
+    const p = JSON.parse(raw) as Partial<PageSnapshot>
+    const selected = typeof p.selected === 'string' ? p.selected : undefined
+    return {
+      open: p.open === true,
+      selected,
+      col2Tab: COL2_TABS.includes(p.col2Tab as Col2Tab) ? p.col2Tab as Col2Tab : 'contacts',
+      paneTab: clampPaneTab(p.paneTab, selected),
+    }
+  } catch {
+    return fallback
+  }
+}
+
 export class PageStore {
-  private snapshot: PageSnapshot = { open: false, selected: undefined, threads: {}, alter: EMPTY_ALTER, deciding: [] }
+  private snapshot: PageSnapshot = { ...loadPersistedPage(), threads: {}, alter: EMPTY_ALTER, deciding: [] }
   private readonly listeners = new Set<() => void>()
   private readonly typingSentAt = new Map<string, number>()
   private readonly typingIdle = new Map<string, ReturnType<typeof setTimeout>>()
   private historyTimer: ReturnType<typeof setTimeout> | undefined
   private historyAgain = false
+  private persistTimer: ReturnType<typeof setTimeout> | undefined
   private seq = 0
   /**
    * Thread keys with a fetch ACTUALLY in flight. Guards use this set, never the
@@ -78,6 +124,30 @@ export class PageStore {
   private set(patch: Partial<PageSnapshot>): void {
     this.snapshot = { ...this.snapshot, ...patch }
     for (const l of this.listeners) l()
+    this.schedulePersist()
+  }
+
+  /** Debounce the navigation-state write so a burst of selection/tab changes writes once. */
+  private schedulePersist(): void {
+    if (this.persistTimer !== undefined) clearTimeout(this.persistTimer)
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined
+      this.persist()
+    }, PERSIST_MS)
+  }
+
+  private persist(): void {
+    try {
+      if (typeof localStorage === 'undefined') return
+      localStorage.setItem(PAGE_STORAGE_KEY, JSON.stringify({
+        open: this.snapshot.open,
+        selected: this.snapshot.selected,
+        col2Tab: this.snapshot.col2Tab,
+        paneTab: this.snapshot.paneTab,
+      }))
+    } catch {
+      // best effort: a persistence failure never breaks the page
+    }
   }
 
   private setThread(fp: string, thread: ThreadState): void {
@@ -178,9 +248,15 @@ export class PageStore {
 
   select = (selection: string): void => {
     if (selection === this.snapshot.selected) return
-    this.set({ selected: selection })
+    this.set({ selected: selection, paneTab: DEFAULT_PANE_TAB })
     this.prime(selection)
   }
+
+  /** Switch the second-column section (contacts / agents / groups). */
+  setCol2Tab = (tab: Col2Tab): void => { if (tab !== this.snapshot.col2Tab) this.set({ col2Tab: tab }) }
+
+  /** Switch the third-column panel (chat / announce / home / members / admin / info). */
+  setPaneTab = (tab: PaneTab): void => { if (tab !== this.snapshot.paneTab) this.set({ paneTab: tab }) }
 
   /** Fetch what the selection needs (the transcript for the alter, the archive for a friend or group). */
   private prime(selection: string): void {

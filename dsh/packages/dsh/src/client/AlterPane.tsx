@@ -10,10 +10,15 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
 import { networkStore, type ApiChatItem } from './api.ts'
+import type { AlterCardOwnerProps } from './alter-card.ts'
+import { ContentTabs } from './ContentTabs.tsx'
 import { DraftCard } from './DraftCard.tsx'
+import type { SoulmirrorSettingsValues } from './SettingsSection.tsx'
 import type { Translate } from './translate.ts'
-import { formatClock, formatDay } from './page-state.ts'
+import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
 import { pageStore } from './page-store.ts'
 import { SoulMirrorIcon } from './SidebarEntry.tsx'
 
@@ -23,6 +28,10 @@ export interface AlterPaneProps {
   onOpenSession: (sessionId: string) => void
   /** Jump to a friend's read-only thread. */
   onGoFriend: (fp: string) => void
+  /** The page's `alter.card` render authorization, handed down as plain props. */
+  renderCards: PropsRenderSlots<'alter.card'>['renderSlot']
+  /** Live `soulmirror` settings scope for the cards. */
+  scope: SettingsScope<SoulmirrorSettingsValues>
 }
 
 /** How close to the bottom (px) counts as "following" — new items auto-scroll only then. */
@@ -37,7 +46,7 @@ function dayOf(ts: number): string {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
-export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
+export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: AlterPaneProps) {
   const page = useSyncExternalStore(pageStore.subscribe, pageStore.getSnapshot)
   const net = useSyncExternalStore(networkStore.subscribe, networkStore.getSnapshot)
   const alter = page.alter
@@ -48,6 +57,8 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
+  /** Last scroll offset, kept across tab switches (the scroller unmounts off "chat"). */
+  const savedTop = useRef(0)
 
   useEffect(() => {
     if (!alter.loaded && !alter.loading) void pageStore.loadAlter()
@@ -55,9 +66,20 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   }, [])
 
   const items = alter.chat.items
+  const firstPaint = useRef(true)
   useLayoutEffect(() => {
     const el = scroller.current
     if (el === null) return
+    if (firstPaint.current && items.length > 0) {
+      // Open the transcript from the TOP the first time there is content (read
+      // the conversation from its start), then only follow new messages once the
+      // user is at the bottom — the same shape as a dsh thread. Waiting for the
+      // first non-empty items matters: on mount the transcript is still loading,
+      // and scrolling then would be a no-op (the later load would snap down).
+      firstPaint.current = false
+      el.scrollTop = 0
+      return
+    }
     if (following.current) el.scrollTop = el.scrollHeight
   }, [items, drafts.length, running])
 
@@ -65,7 +87,21 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
     const el = scroller.current
     if (el === null) return
     following.current = el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_SLACK
+    savedTop.current = el.scrollTop
   }
+
+  /**
+   * The scroller UNMOUNTS while a non-chat tab is up, so returning to "chat"
+   * would otherwise paint a fresh element at scrollTop 0 (the oldest message):
+   * the data-keyed effect above does not re-run on a tab switch. Put the reader
+   * back where they were — or at the bottom if they were following the tail.
+   */
+  useLayoutEffect(() => {
+    if (page.paneTab !== 'chat') return
+    const el = scroller.current
+    if (el === null) return
+    el.scrollTop = following.current ? el.scrollHeight : savedTop.current
+  }, [page.paneTab])
 
   const submit = useCallback((text: string): void => {
     if (text.trim() === '') return
@@ -172,12 +208,79 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             <span className="sm-noteline">{t('alter.failed.hint')}</span>
           </div>
         )
+      case 'thinking':
+        return (
+          <div className="sm-citem sm-wide" data-soulmirror-alter-item="thinking" data-soulmirror-thinking={item.streaming ? 'streaming' : 'done'}>
+            <div style={{ fontSize: 12, opacity: 0.6, fontStyle: 'italic', whiteSpace: 'pre-wrap', borderLeft: '2px solid rgba(127,127,127,.4)', padding: '2px 10px', margin: '2px 0 2px 12px', maxWidth: '100%' }}>
+              💭 {item.text}
+            </div>
+          </div>
+        )
+      case 'tool':
+        return (
+          <div className="sm-citem sm-wide" data-soulmirror-alter-item="tool">
+            <div style={{ fontSize: 12, opacity: 0.7, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', padding: '1px 4px', wordBreak: 'break-all' }}>
+              🔧 {item.name} <span style={{ opacity: 0.7 }}>{item.args}</span>
+            </div>
+          </div>
+        )
       default:
         return <></>
     }
   }
 
   const firstDraft = drafts[0]
+
+  const paneTab: PaneTab = page.paneTab
+  const tabs = tabsFor('alter', false)
+  const alterHome = (
+    <div className="sm-home" data-soulmirror-alter-home>
+      <div className="sm-home-inner">
+        <div className="sm-home-id">
+          <span className="sm-avatar sm-avatar-alter sm-avatar-lg" aria-hidden><SoulMirrorIcon size={18} /></span>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span className="sm-home-id-name">{t('alter.me')}</span>
+            <span className="sm-home-id-sub">
+              <span className={`sm-livedot${running ? ' sm-busy' : ''}`} aria-hidden />
+              <span>{alter.sessionId === undefined ? t('alter.status.noSession') : running ? t('alter.status.running') : t('alter.status.idle')}</span>
+            </span>
+          </div>
+        </div>
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('alter.home.profile')}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.session')}</span><span className="sm-home-line-val">{alter.sessionId ?? t('alter.home.none')}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.friends')}</span><span className="sm-home-line-val">{friends.length}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.drafts')}</span><span className="sm-home-line-val">{drafts.length}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.defaultTier')}</span><span className="sm-home-line-val">{t(`tier.short.${net.state?.alter?.defaultTier ?? 'draft'}`)}</span></div>
+          <div className="sm-home-line"><span className="sm-home-line-key">{t('alter.home.perHour')}</span><span className="sm-home-line-val">{net.state?.alter?.autoReplyPerHour ?? 20}</span></div>
+        </div>
+        {alter.sessionId !== undefined
+          ? (
+            <div className="sm-home-card">
+              <div className="sm-home-title"><span>{t('alter.home.actions')}</span></div>
+              <button type="button" className="sm-ghostbtn" onClick={() => { onOpenSession(alter.sessionId!) }} data-soulmirror-alter-open-dsh>
+                <IconRightUpOutline14 size={14} /> {t('alter.openDsh')}
+              </button>
+            </div>
+          )
+          : null}
+      </div>
+    </div>
+  )
+
+  // The "settings" tab is the card surface: every registered `alter.card` renders here.
+  const cardProps: AlterCardOwnerProps = {
+    alter: { sessionId: alter.sessionId, status: alter.status },
+    scope,
+    openSession: () => { if (alter.sessionId !== undefined) onOpenSession(alter.sessionId) },
+  }
+  const alterSettings = (
+    <div className="sm-home" data-soulmirror-alter-settings>
+      <div className="sm-home-inner">
+        {renderCards('alter.card', cardProps)}
+      </div>
+    </div>
+  )
 
   return (
     <section className="sm-chat-col" data-soulmirror-page-chat="alter" data-soulmirror-alter-status={running ? 'running' : 'idle'} style={{ position: 'relative' }}>
@@ -202,6 +305,8 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             : null}
         </div>
       </header>
+      <ContentTabs tabs={tabs} active={paneTab} onChange={pageStore.setPaneTab} t={t} />
+      {paneTab === 'settings' ? alterSettings : paneTab === 'home' ? alterHome : <>
       {drafts.length > 0 && firstDraft !== undefined
         ? (
           <div className="sm-pendbar" data-soulmirror-alter-pendbar={drafts.length}>
@@ -257,6 +362,7 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
         </div>
         <span className="sm-composer-hint">{t('alter.composer.hint')}</span>
       </div>
+      </>}
     </section>
   )
 }

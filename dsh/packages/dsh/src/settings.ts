@@ -21,6 +21,9 @@ import { DEFAULT_AUTO_REPLY_PER_HOUR, DEFAULT_REPLY_TIER, normalizeTier, type Re
 
 export const SETTINGS_NAMESPACE = 'soulmirror'
 
+/** How much capability the alter session gets. `comms` = the SoulMirror-only preset; `full` = dsh's standard preset (shell / filesystem, like a normal dsh session). */
+export type AlterMode = 'comms' | 'full'
+
 export interface SoulmirrorSettings {
   /** Relay (mail office) URL; baked into identity.json when the identity is created. */
   relay: string
@@ -37,6 +40,8 @@ export interface SoulmirrorSettings {
   autoReplyPerHour: number
   /** Debug: offer "Send as myself" in the friend pane (bypasses the alter). */
   directSend: boolean
+  /** Capability mode of the alter session (applies to the next alter session created/resumed). */
+  alterMode: AlterMode
 }
 
 export const SOULMIRROR_SETTINGS_SCHEMA = z.object({
@@ -48,6 +53,7 @@ export const SOULMIRROR_SETTINGS_SCHEMA = z.object({
   defaultTier: z.union([z.const('notify'), z.const('draft'), z.const('auto')]).default(DEFAULT_REPLY_TIER).description('Default reply tier for friends: notify = mail is only shown; draft = the alter drafts a reply you review on the SoulMirror page; auto = the alter replies by itself (rate-limited).'),
   autoReplyPerHour: z.number().default(DEFAULT_AUTO_REPLY_PER_HOUR).description('Maximum automatic replies per friend per hour in the auto tier (0 disables).'),
   directSend: z.boolean().default(false).description('Debug: offer "Send as myself" in a friend thread (bypasses the alter); off by default.'),
+  alterMode: z.union([z.const('comms'), z.const('full')]).default('comms').description('Alter capability: comms = SoulMirror-only preset (messages/groups); full = dsh standard preset (shell + filesystem, like a normal dsh session). Applies to the next alter session.'),
 })
 
 /** Fill in defaults for a partial section (plugin config or a stored user section). */
@@ -64,5 +70,6 @@ export function resolveSettings(partial: Partial<SoulmirrorSettings> | undefined
     defaultTier: normalizeTier(partial?.defaultTier),
     autoReplyPerHour: perHour,
     directSend: partial?.directSend === true,
+    alterMode: partial?.alterMode === 'full' ? 'full' : 'comms',
   }
 }
