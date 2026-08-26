@@ -452,7 +452,18 @@ func (n *Peer) GroupAnnounceVoices(ctx context.Context, gid string, voices []str
 	msg := &a2a.Message{ID: n.newMsgID(), From: n.Fingerprint(), GID: gid, TS: time.Now(),
 		Type: a2a.TypeGroupVoices, Voices: sanitizeVoices(voices)}
 	if err := n.fanOutGroup(ctxOrBackground(ctx), st, msg); err != nil {
-		n.logf("group %s: voices announce delivery failed: %v", a2a.ShortFp(gid), err)
+		// Startup announces hit the relay in a burst and an occasional post
+		// times out; the roster metadata must still converge - one delayed
+		// retry covers it (receivers dedupe by message id).
+		n.logf("group %s: voices announce delivery failed (retrying once): %v", a2a.ShortFp(gid), err)
+		go func() {
+			time.Sleep(7 * time.Second)
+			if st2 := n.Groups.Get(gid); st2 != nil {
+				if err2 := n.fanOutGroup(context.Background(), st2, msg); err2 != nil {
+					n.logf("group %s: voices announce retry failed: %v", a2a.ShortFp(gid), err2)
+				}
+			}
+		}()
 	}
 	return nil
 }

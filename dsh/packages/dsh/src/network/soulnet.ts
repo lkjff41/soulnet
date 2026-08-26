@@ -20,7 +20,7 @@
  * The winner and its source are reported in `BackendStatus.binary` / `binarySource`.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
-import { accessSync, appendFileSync, chmodSync, constants, mkdirSync, realpathSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, constants, mkdirSync, realpathSync, renameSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
@@ -455,6 +455,7 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
   // a failing disk write must never take the network down.
   const peerLogPath = join(options.home, 'a2a', 'logs', 'soulnet-peer.log')
   let peerLogReady = false
+  let peerLogWrites = 0
   const log: SoulnetLogger = (level, message) => {
     hostLog(level, message)
     try {
@@ -462,6 +463,17 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
         mkdirSync(dirname(peerLogPath), { recursive: true })
         peerLogReady = true
       }
+      // Size-capped: an append-only log on a long-lived install grows without
+      // bound. Every 200 writes (and on the first), roll a >2MB file to .old
+      // (one generation kept).
+      if (peerLogWrites % 200 === 0) {
+        try {
+          if (statSync(peerLogPath).size > 2 * 1024 * 1024) renameSync(peerLogPath, `${peerLogPath}.old`)
+        } catch {
+          // missing file / locked rename: keep appending
+        }
+      }
+      peerLogWrites += 1
       appendFileSync(peerLogPath, `${new Date().toISOString()} ${level.toUpperCase()} ${message}
 `)
     } catch {

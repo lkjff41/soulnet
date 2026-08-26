@@ -67,9 +67,9 @@ export class UpgradeStore {
    * swallows errors — an offline machine must not grow error banners on its
    * own; the manual button reports them.
    */
-  check = async (options: { silent?: boolean } = {}): Promise<void> => {
+  check = async (options: { silent?: boolean; refresh?: boolean } = {}): Promise<void> => {
     if (this.snapshot.phase === 'checking' || this.snapshot.phase === 'installing' || this.snapshot.phase === 'restarting') return
-    if (options.silent === true && this.checkedOnce) return
+    if (options.silent === true && this.checkedOnce && options.refresh !== true) return
     this.checkedOnce = true
     this.set({ phase: 'checking', ...(options.silent === true ? {} : { error: undefined }) })
     try {
