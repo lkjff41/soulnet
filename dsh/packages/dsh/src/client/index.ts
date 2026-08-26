@@ -49,6 +49,7 @@ import { pageStore } from './page-store.ts'
 import { SidebarEntry } from './SidebarEntry.tsx'
 import { SidebarNavEntry } from './SidebarNavEntry.tsx'
 import { SoulmirrorPage, type SoulmirrorPageInjected } from './SoulmirrorPage.tsx'
+import { UpdateTrigger } from './UpdateTrigger.tsx'
 import { upgradeStore } from './upgrade-store.ts'
 import { ensureStyles, removeStyles } from './styles.ts'
 
@@ -188,6 +189,15 @@ export function apply(ctx: ClientContext): void {
     openSession,
     scope,
   })
+  // The Settings BUTTON itself carries the update dot: take over the single
+  // settings.trigger seat (same icon+label as the default occupant, plus a
+  // reactive red dot; -10 shadows the shipped registrant like the brand seat).
+  ctx.slots.inject('settings.trigger', () => ctx.slots.register({
+    name: 'settings.trigger',
+    priority: -10,
+    locale: NS,
+  }, UpdateTrigger))
+
   ctx.slots.inject('settings.section', () => {
     // The host evaluates a slot label ONCE at registration - the silent
     // update check answers later, so a label function alone never grows its
