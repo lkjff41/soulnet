@@ -23,6 +23,8 @@ const CSS = `
 }
 .sm-update-fab:hover { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); }
 .sm-update-fab:disabled, .sm-update-fab.sm-busy { opacity: .8; cursor: default; }
+.sm-update-spin { animation: sm-update-spin 900ms linear infinite; }
+@keyframes sm-update-spin { to { transform: rotate(360deg); } }
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
   padding: 2px 9px; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 999px;
   background: transparent; color: var(--dsw-alias-brand-primary);

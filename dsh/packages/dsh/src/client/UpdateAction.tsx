@@ -8,9 +8,28 @@
  */
 import { useSyncExternalStore } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
 import { upgradeStore } from './upgrade-store.ts'
+
+/** Upward arrow (update available). */
+function ArrowUpIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path d="M8 13.2V3.6M3.6 7.6 8 3.2l4.4 4.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** Spinning arc shown while the upgrade chain runs. */
+function SpinnerIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden className="sm-update-spin">
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="20" />
+    </svg>
+  )
+}
 
 export function UpdateAction({ t }: { wide: boolean } & PropsLocale<typeof NS>) {
   const upgrade = useSyncExternalStore(upgradeStore.subscribe, upgradeStore.getSnapshot)
@@ -36,7 +55,7 @@ export function UpdateAction({ t }: { wide: boolean } & PropsLocale<typeof NS>) 
           void upgradeStore.run()
         }}
       >
-        <span aria-hidden style={{ lineHeight: 1, fontSize: 12 }}>{busy ? '⏳' : '⬆'}</span>
+        {busy ? <SpinnerIcon /> : <ArrowUpIcon />}
       </button>
     </Tooltip>
   )
