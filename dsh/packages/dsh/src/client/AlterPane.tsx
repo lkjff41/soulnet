@@ -57,6 +57,8 @@ export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: 
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
+  /** Last scroll offset, kept across tab switches (the scroller unmounts off "chat"). */
+  const savedTop = useRef(0)
 
   useEffect(() => {
     if (!alter.loaded && !alter.loading) void pageStore.loadAlter()
@@ -85,7 +87,21 @@ export function AlterPane({ t, onOpenSession, onGoFriend, renderCards, scope }: 
     const el = scroller.current
     if (el === null) return
     following.current = el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_SLACK
+    savedTop.current = el.scrollTop
   }
+
+  /**
+   * The scroller UNMOUNTS while a non-chat tab is up, so returning to "chat"
+   * would otherwise paint a fresh element at scrollTop 0 (the oldest message):
+   * the data-keyed effect above does not re-run on a tab switch. Put the reader
+   * back where they were — or at the bottom if they were following the tail.
+   */
+  useLayoutEffect(() => {
+    if (page.paneTab !== 'chat') return
+    const el = scroller.current
+    if (el === null) return
+    el.scrollTop = following.current ? el.scrollHeight : savedTop.current
+  }, [page.paneTab])
 
   const submit = useCallback((text: string): void => {
     if (text.trim() === '') return
