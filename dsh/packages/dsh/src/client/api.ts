@@ -330,6 +330,8 @@ export class NetworkStore {
   private readonly mailListeners = new Set<(notice: MailNotice) => void>()
   private readonly frameListeners = new Set<(frame: NetworkEventFrame) => void>()
   private source: EventSource | undefined
+  private everConnected = false
+  private readonly reconnectListeners = new Set<() => void>()
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
   private hiddenTimer: ReturnType<typeof setTimeout> | undefined
   private inflight: Promise<void> | undefined
@@ -362,6 +364,12 @@ export class NetworkStore {
       // Frames were missed while disconnected: same catch-up as an EventSource reconnect.
       this.scheduleRefresh()
     }
+  }
+
+  /** Fires on every re-established event stream (frames were missed in between). */
+  onReconnect = (listener: () => void): (() => void) => {
+    this.reconnectListeners.add(listener)
+    return () => { this.reconnectListeners.delete(listener) }
   }
 
   getSnapshot = (): NetworkStoreSnapshot => this.snapshot
@@ -451,6 +459,13 @@ export class NetworkStore {
     if (this.source !== undefined || typeof EventSource === 'undefined') return
     const source = new EventSource(`${API_BASE}events`)
     this.source = source
+    source.addEventListener('open', () => {
+      // Every RE-connect (hidden-tab release, EventSource auto-retry) has a
+      // gap where frames were missed: state refreshes elsewhere, but loaded
+      // THREADS must refetch too or an open chat silently stays stale.
+      if (this.everConnected) for (const l of this.reconnectListeners) l()
+      this.everConnected = true
+    })
     const handle = (event: MessageEvent): void => {
       let frame: NetworkEventFrame
       try {

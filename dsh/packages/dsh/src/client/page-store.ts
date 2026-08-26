@@ -110,7 +110,18 @@ export class PageStore {
    */
   private readonly inflightThreads = new Set<string>()
 
+  /** SSE came back after a gap: every loaded thread may have missed frames. */
+  private refetchLoadedThreads = (): void => {
+    for (const [key, t] of Object.entries(this.snapshot.threads)) {
+      if (!t.loaded) continue
+      const gid = gidOf(key)
+      if (gid !== undefined) void this.loadGroup(gid)
+      else if (agentOf(key) === undefined) void this.load(key)
+    }
+  }
+
   constructor() {
+    networkStore.onReconnect(this.refetchLoadedThreads)
     networkStore.onFrame(this.onFrame)
   }
 
