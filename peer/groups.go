@@ -149,7 +149,7 @@ func (n *Peer) distributeSenderKey(ctx context.Context, st *a2a.GroupState) {
 		n.gkMu.Unlock()
 		return
 	}
-	epoch, chain := keys.Mine.Epoch, keys.Mine.Chain
+	epoch, index, chain := keys.Mine.Epoch, keys.Mine.Index, keys.Mine.Chain
 	targets := map[string]*a2a.Card{}
 	for _, c := range st.Roster.Members {
 		fp, err := c.Fingerprint()
@@ -165,7 +165,7 @@ func (n *Peer) distributeSenderKey(ctx context.Context, st *a2a.GroupState) {
 	var reached []string
 	for fp, c := range targets {
 		msg := &a2a.Message{ID: n.newMsgID(), From: me, To: fp, TS: time.Now(),
-			Type: a2a.TypeGroupKey, GID: gid, GKey: &a2a.GroupKeyDist{Epoch: epoch, Chain: chain}}
+			Type: a2a.TypeGroupKey, GID: gid, GKey: &a2a.GroupKeyDist{Epoch: epoch, Index: index, Chain: chain}}
 		if err := n.sendGroupPairwise(ctx, c, msg); err != nil {
 			n.logf("group %s: key distribution to %s failed: %v", a2a.ShortFp(gid), a2a.ShortFp(fp), err)
 			continue
@@ -968,7 +968,7 @@ func (n *Peer) handleGroupKey(msg *a2a.Message) error {
 	if existing := keys.Senders[msg.From]; existing != nil && msg.GKey.Epoch <= existing.Epoch {
 		return nil // replay or duplicate of what we hold
 	}
-	keys.Senders[msg.From] = &a2a.GroupRecvState{Epoch: msg.GKey.Epoch, Index: 0, Chain: msg.GKey.Chain}
+	keys.Senders[msg.From] = &a2a.GroupRecvState{Epoch: msg.GKey.Epoch, Index: msg.GKey.Index, Chain: msg.GKey.Chain}
 	return n.Groups.PutKeys(msg.GID, keys)
 }
 
