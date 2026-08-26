@@ -178,9 +178,10 @@ export function apply(ctx: ClientContext): void {
   //    and the full badge inside the "Version & updates" card.
   void upgradeStore.check({ silent: true })
   // A page left open would otherwise never learn of a new release: re-check
-  // silently twice an hour (the badge appears by itself).
+  // silently every 5 minutes (a lightweight metadata GET; the badge appears
+  // by itself).
   ctx.effect(() => {
-    const timer = setInterval(() => { void upgradeStore.check({ silent: true, refresh: true }) }, 30 * 60_000)
+    const timer = setInterval(() => { void upgradeStore.check({ silent: true, refresh: true }) }, 5 * 60_000)
     return () => { clearInterval(timer) }
   })
   const settingsInjected = (): SoulmirrorSettingsInjected => ({
