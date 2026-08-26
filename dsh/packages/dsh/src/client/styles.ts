@@ -12,11 +12,19 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
+.sm-update-banner {
+  flex: none; margin: 8px 10px 0; padding: 7px 10px; border: none; border-radius: 9px;
+  background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;
+}
+.sm-update-banner:hover { filter: brightness(1.08); }
+.sm-update-banner:disabled { opacity: .7; cursor: default; }
+
 /* Native form controls follow the ACTIVE theme: the option list of a <select>
    (and scrollbars, checkboxes...) is OS-rendered and ignores CSS tokens - it
    only obeys color-scheme. dsh marks its dark theme on <body>. */
 body[data-ds-dark-theme] { color-scheme: dark; }
-.sm-select option { background: var(--dsw-specific-menu); color: var(--dsw-alias-label-primary); }
+.sm-page-root select option, .sm-page-root select optgroup { background: var(--dsw-specific-menu); color: var(--dsw-alias-label-primary); }
 
 .sm-footer {
   flex: none; display: flex; align-items: center; gap: 8px;
