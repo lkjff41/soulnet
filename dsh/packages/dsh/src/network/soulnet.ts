@@ -929,6 +929,21 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
       listeners.add(listener)
       return () => { listeners.delete(listener) }
     },
+    relaunch: async (params: { pid: number; exec: string; argv: readonly string[]; cwd: string }) => {
+      // Self-upgrade restart: hand the peer our own command line plus ITS pid
+      // (the child we spawned), so the detached helper can make sure the old
+      // peer is dead before the new host starts — two peers on one identity
+      // steal each other's mail and fork group keys. An old peer without
+      // `host.relaunch` answers method-not-found; the caller falls back to
+      // "restart manually".
+      await call('host.relaunch', {
+        pid: params.pid,
+        exec: params.exec,
+        argv: [...params.argv],
+        cwd: params.cwd,
+        ...(child?.pid === undefined ? {} : { peer_pid: child.pid }),
+      }, 10_000)
+    },
     dispose: async () => {
       if (disposed) return
       disposed = true

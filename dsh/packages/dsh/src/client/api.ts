@@ -164,9 +164,9 @@ export class ApiError extends Error {
  * server restart would otherwise leave UI loading states frozen forever). */
 const CALL_TIMEOUT_MS = 30_000
 
-async function call<T>(route: string, body?: Record<string, unknown>): Promise<T> {
+async function call<T>(route: string, body?: Record<string, unknown>, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
   const ctl = new AbortController()
-  const timer = setTimeout(() => { ctl.abort() }, CALL_TIMEOUT_MS)
+  const timer = setTimeout(() => { ctl.abort() }, timeoutMs)
   let response: Response
   try {
     response = await fetch(`${API_BASE}${route}`, body === undefined && route === 'state'
@@ -175,7 +175,7 @@ async function call<T>(route: string, body?: Record<string, unknown>): Promise<T
   } catch (e: unknown) {
     // A human sentence instead of the browser's "signal is aborted without reason".
     if (e instanceof DOMException && e.name === 'AbortError') {
-      throw new ApiError(`${route}: no answer within ${CALL_TIMEOUT_MS / 1000}s (server busy or restarting)`, -32603, 0)
+      throw new ApiError(`${route}: no answer within ${timeoutMs / 1000}s (server busy or restarting)`, -32603, 0)
     }
     throw e
   } finally {
@@ -195,8 +195,18 @@ async function call<T>(route: string, body?: Record<string, unknown>): Promise<T
   return parsed as T
 }
 
+/** `upgrade.check`: the running plugin version vs. the registry's latest. */
+export interface ApiUpgradeCheck { current: string; latest: string; hasUpdate: boolean; registry: string }
+/** `upgrade.run`: pnpm outcome + whether the host is restarting itself. */
+export interface ApiUpgradeRun { ok: boolean; exitCode: number; output: string; version: string; profileDir: string; restarting: boolean }
+
 export const api = {
   state: () => call<ApiState>('state'),
+  /** Self-upgrade: is a newer soulnet-dsh published? */
+  upgradeCheck: () => call<ApiUpgradeCheck>('upgrade.check', {}),
+  /** Self-upgrade: install `soulnet-dsh@version` (pnpm may take minutes — long timeout). */
+  upgradeRun: (version: string, registry?: string) =>
+    call<ApiUpgradeRun>('upgrade.run', { version, ...(registry === undefined ? {} : { registry }) }, 10 * 60_000),
   createIdentity: (name: string) => call<{ identity: ApiIdentity }>('identity.create', { name }),
   parseCard: (uri: string) => call<{ fp: string; name: string; uri: string }>('card.parse', { uri }),
   addFriend: (cardUri: string, note?: string) => call<{ friend: ApiFriend }>('friends.add', { card_uri: cardUri, ...(note === undefined ? {} : { note }) }),

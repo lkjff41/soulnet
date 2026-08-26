@@ -49,6 +49,7 @@ import { pageStore } from './page-store.ts'
 import { SidebarEntry } from './SidebarEntry.tsx'
 import { SidebarNavEntry } from './SidebarNavEntry.tsx'
 import { SoulmirrorPage, type SoulmirrorPageInjected } from './SoulmirrorPage.tsx'
+import { upgradeStore } from './upgrade-store.ts'
 import { ensureStyles, removeStyles } from './styles.ts'
 
 export type { A2AChatData } from './a2a-node.ts'
@@ -171,7 +172,11 @@ export function apply(ctx: ClientContext): void {
     inject: overlayInjected,
   }, InboxOverlay))
 
-  // 3. Settings section backed by the host `soulmirror` namespace.
+  // 3. Settings section backed by the host `soulmirror` namespace. One SILENT
+  //    update check per page load; a newer published version puts a dot on
+  //    the section's nav label (the store answers before Settings is opened)
+  //    and the full badge inside the "Version & updates" card.
+  void upgradeStore.check({ silent: true })
   const settingsInjected = (): SoulmirrorSettingsInjected => ({
     openSession,
     scope,
@@ -181,7 +186,7 @@ export function apply(ctx: ClientContext): void {
     id: 'soulmirror',
     order: 80,
     locale: NS,
-    label: () => t('settings.nav'),
+    label: () => upgradeStore.getSnapshot().hasUpdate ? `${t('settings.nav')} ●` : t('settings.nav'),
     inject: settingsInjected,
   }, SoulmirrorSettingsSection))
 
