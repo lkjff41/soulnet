@@ -20,7 +20,7 @@
  * The winner and its source are reported in `BackendStatus.binary` / `binarySource`.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
-import { accessSync, chmodSync, constants, realpathSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, constants, mkdirSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
@@ -448,7 +448,26 @@ function toNetworkError(error: unknown, method: string): NetworkError {
  * the first call or on `start()`; `dispose()` stops it.
  */
 export function createSoulnetNetworkClient(options: SoulnetClientOptions): NetworkClient & { start(): void } {
-  const log: SoulnetLogger = options.logger ?? (() => {})
+  const hostLog: SoulnetLogger = options.logger ?? (() => {})
+  // The peer's own voice (its stderr) must survive somewhere greppable: the
+  // dsh host logger only keeps an in-memory ring, so every line the client
+  // logs is ALSO appended to <home>/a2a/logs/soulnet-peer.log. Best effort -
+  // a failing disk write must never take the network down.
+  const peerLogPath = join(options.home, 'a2a', 'logs', 'soulnet-peer.log')
+  let peerLogReady = false
+  const log: SoulnetLogger = (level, message) => {
+    hostLog(level, message)
+    try {
+      if (!peerLogReady) {
+        mkdirSync(dirname(peerLogPath), { recursive: true })
+        peerLogReady = true
+      }
+      appendFileSync(peerLogPath, `${new Date().toISOString()} ${level.toUpperCase()} ${message}
+`)
+    } catch {
+      // best effort
+    }
+  }
   const relay = options.relay !== undefined && options.relay.trim() !== '' ? options.relay.trim() : DEFAULT_RELAY
   const requestTimeoutMs = options.requestTimeoutMs ?? 30_000
   const backoffInitial = options.backoff?.initialMs ?? 500
