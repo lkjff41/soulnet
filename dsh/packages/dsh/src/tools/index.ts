@@ -48,6 +48,7 @@ import { entryBy, groupProfileOf, sendGroupMessage } from '../group-contract.ts'
 import { sendAndArchive } from '../network/send.ts'
 import { NetworkError, NetworkErrorCode, type ConversationEntry, type Friend } from '../network/types.ts'
 import { agentRoundsExceeded, countAutoInWindow, DEFAULT_AUTO_REPLY_PER_HOUR, DEFAULT_REPLY_TIER, effectiveAgentTier, groupSendGate, mentionsAgent, mentionsMe, sendGate, UNKNOWN_TRIGGER, type GroupCapEntry, type SendDecision, type TurnTrigger } from '../policy.ts'
+import type { PaygateClient } from '../network/paygate.ts'
 import type { SoulmirrorSettings } from '../settings.ts'
 import { defineTool } from './define.ts'
 import type {} from '../index.ts'
@@ -392,6 +393,122 @@ export function apply(ctx: Context): void {
     },
   })
 
-  for (const tool of [friends, card, addFriend, sendMessage, sendGroup, readConversation]) ctx.tools.register(tool)
-  ctx.logger.info('soulmirror-tools: registered soulmirror_friends, soulmirror_card, soulmirror_add_friend, soulmirror_send_message, soulmirror_send_group_message, soulmirror_read_conversation')
+  const wallet = defineTool({
+    name: 'soulmirror_wallet',
+    description: 'Manage the user\'s USDC wallet (Coinbase CDP, Base network) through the local payment gateway. op "get_or_create" creates or returns the wallet address (free, moves no money; the address is public and anyone can send USDC to it), op "balance" returns the USDC/ETH balance, op "status" returns the gateway/wallet state. When the gateway is not configured with CDP, the result explains how to enable it. This tool NEVER sends money.',
+    parameters: {
+      op: { type: 'string', enum: ['get_or_create', 'balance', 'status'], description: 'What to do: get_or_create = create or return the wallet address; balance = current USDC/ETH balance; status = gateway + wallet state.' },
+    },
+    output: { type: 'object' },
+    async execute(args) {
+      const pay = loose.get('soulmirrorPay') as PaygateClient | undefined
+      if (pay === undefined) throw new NetworkError('payment gateway unavailable (the fake backend does not run one)', -32603)
+      try {
+        switch (args.op) {
+          case 'get_or_create': {
+            const wallet = await pay.call('POST', '/v2/pay/wallet.create') as { address?: string }
+            // Publish the wallet address to the capability directory so other
+            // agents can find it. The public relay may run an older a2a.Profile
+            // that drops the new field on decode and fails the signature — in
+            // that case fall back to publishing the profile WITHOUT the address
+            // (the directory stays healthy; address resolution then needs
+            // to_address until the relay is upgraded).
+            if (wallet.address !== undefined) {
+              try {
+                const profile = (await net.profile.get()) ?? {}
+                if (profile.usdc_address !== wallet.address) {
+                  await net.profile.save({ ...profile, usdc_address: wallet.address })
+                  try {
+                    await net.directory.publish()
+                  } catch {
+                    const stripped = { ...profile }
+                    delete stripped.usdc_address
+                    await net.profile.save(stripped)
+                    await net.directory.publish()
+                  }
+                }
+              } catch (error: unknown) {
+                ctx.logger.warn(`soulmirror-tools: wallet address publish failed: ${String(error)}`)
+              }
+            }
+            return wallet
+          }
+          case 'balance':
+            return await pay.call('GET', '/v2/pay/wallet')
+          case 'status': {
+            const config = await pay.call('GET', '/v2/pay/config')
+            return { gateway: pay.status(), config }
+          }
+        }
+      } catch (error: unknown) {
+        // Gateway error codes are already -320xx; surface the message.
+        if (error instanceof Error && 'code' in error) throw error
+        throw new NetworkError(String(error), -32603)
+      }
+    },
+  })
+
+  const transfer = defineTool({
+    name: 'soulmirror_transfer',
+    description: 'Send USDC from this alter\'s wallet to an agent\'s wallet address. The address is resolved from the recipient\'s published capability-directory profile (by fingerprint); pass to_address explicitly when the recipient\'s profile does not carry a published address (older directory relays). amount_usdc is a decimal like "1.00". On the owner\'s direct instruction the transfer goes out immediately; when the alter acts on its own the tool asks the owner to approve first. Fails if this alter has no CDP-configured wallet.',
+    parameters: {
+      to_fp: { type: 'string', description: 'Fingerprint of the recipient agent.' },
+      to_address: { type: 'string', description: 'Optional explicit 0x recipient address; overrides directory resolution.', optional: true },
+      amount_usdc: { type: 'string', description: 'Amount in USDC, decimal string, e.g. "1.00".' },
+      memo: { type: 'string', description: 'Optional note for the transfer.', optional: true },
+    },
+    output: { type: 'object' },
+    async execute(args, exec) {
+      // 1) Resolve the recipient address: explicit to_address wins, else the
+      //    recipient's published profile (directory). Fall back to asking the
+      //    owner for the address when neither is available.
+      const toFp = args.to_fp as Fingerprint
+      let toAddress = args.to_address?.trim() ?? ''
+      if (toAddress === '') {
+        const hit = await net.directory.fetch(toFp)
+        toAddress = hit?.profile?.usdc_address ?? ''
+      }
+      if (toAddress === '') {
+        return {
+          ok: false,
+          reason: 'no-wallet-published',
+          message: `${args.to_fp} 没有可解析的 USDC 收款地址（对方的目录里没有发布，或目录是旧版）。请让对方把钱包地址发给你，然后用 to_address 参数重试。没有转账发生。`,
+        }
+      }
+      // 2) Approval gate (decision: owner instruction → direct; alter on its own → confirm).
+      const face = seams.sessions()
+      const trigger = face === undefined || exec.agent === undefined ? UNKNOWN_TRIGGER : face.triggerOf(exec.agent.id)
+      if (trigger.kind !== 'owner') {
+        const outcome = await approve(exec, 'soulmirror_transfer', `转 ${args.amount_usdc} USDC 给 ${args.to_fp}（收款地址 ${toAddress}）`)
+        if (outcome !== 'allowed-once') return notApproved(outcome, `转 ${args.amount_usdc} USDC 给 ${args.to_fp}`)
+      }
+      // 3) Send through the local payment gateway.
+      const pay = loose.get('soulmirrorPay') as PaygateClient | undefined
+      if (pay === undefined) throw new NetworkError('payment gateway unavailable (the fake backend does not run one)', -32603)
+      const result = await pay.call('POST', '/v2/pay/transfer', {
+        to_address: toAddress,
+        amount_usdc: args.amount_usdc,
+        ...(args.memo === undefined ? {} : { memo: args.memo }),
+      }) as { tx_hash?: string; amount?: string; to?: string; status?: string }
+      // 4) Best-effort on-chain notification to the recipient's alter.
+      if (result.tx_hash !== undefined) {
+        try {
+          await net.send(toFp, `你收到 ${args.amount_usdc} USDC（交易 ${result.tx_hash}）`, { auto: true })
+        } catch {
+          // notification is best effort
+        }
+      }
+      return {
+        ok: true,
+        tx_hash: result.tx_hash,
+        amount: result.amount ?? args.amount_usdc,
+        to: result.to ?? toAddress,
+        status: result.status ?? 'processing',
+        message: `已转出 ${args.amount_usdc} USDC 给 ${args.to_fp}（交易 ${result.tx_hash}），对方查收。`,
+      }
+    },
+  })
+
+  for (const tool of [friends, card, addFriend, sendMessage, sendGroup, readConversation, wallet, transfer]) ctx.tools.register(tool)
+  ctx.logger.info('soulmirror-tools: registered soulmirror_friends, soulmirror_card, soulmirror_add_friend, soulmirror_send_message, soulmirror_send_group_message, soulmirror_read_conversation, soulmirror_wallet, soulmirror_transfer')
 }

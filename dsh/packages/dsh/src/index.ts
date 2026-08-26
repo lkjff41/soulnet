@@ -18,11 +18,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { mountApi } from './api/index.ts'
 import { createFakeNetworkClient } from './network/fake.ts'
+import { createPaygateClient, type PaygateClient } from './network/paygate.ts'
 import { createSoulnetNetworkClient, defaultSoulnetHome } from './network/soulnet.ts'
 import type { NetworkClient } from './network/types.ts'
 import { resolveSettings, SETTINGS_NAMESPACE, SOULMIRROR_SETTINGS_SCHEMA, type SoulmirrorSettings } from './settings.ts'
 
 export type * from './network/types.ts'
+export type * from './network/paygate.ts'
 export type * from './events.ts'
 export { SOULMIRROR_PLUGIN, RELAY_FORM } from './events.ts'
 export { SETTINGS_NAMESPACE } from './settings.ts'
@@ -45,6 +47,8 @@ declare module '@deepseek-ai/cordis' {
     soulmirrorHome: string
     /** Live settings: `defaultTier` / `autoReplyPerHour` / `directSend` are read per use; connection fields apply on reload. */
     soulmirrorConfig: SoulmirrorConfig
+    /** Local payment gateway (USDC via CDP): spawns the paygate process, signs A2A requests through the peer. Undefined when the backend is the fake. */
+    soulmirrorPay: PaygateClient | undefined
   }
 }
 
@@ -67,7 +71,25 @@ export function apply(ctx: Context, config: Config = {}): void {
   // `live` follows the user document: the connection fields still apply on
   // reload (the peer is already running), the alter fields are read per use.
   let live: SoulmirrorSettings = entry
+  // Paygate-relevant fields: changing them restarts the gateway process so the
+  // new CDP keys / proxy / network apply without reloading the plugin.
+  const paygateFieldsChanged = (a: SoulmirrorSettings, b: SoulmirrorSettings): boolean =>
+    a.cdpKeyId !== b.cdpKeyId || a.cdpKeySecret !== b.cdpKeySecret || a.cdpWalletSecret !== b.cdpWalletSecret
+    || a.cdpNetwork !== b.cdpNetwork || a.paygateProxy !== b.paygateProxy || a.paygatePort !== b.paygatePort || a.paygateBinary !== b.paygateBinary
   const settingsNow = ctx.get('settings')
+  // paygateApplied snapshots the settings the gateway was last spawned with;
+  // syncPaygate restarts the gateway when they differ — covering BOTH the
+  // "settings service loads after the gateway was spawned" case (ctx.inject
+  // branch) and later user edits.
+  let paygateApplied: SoulmirrorSettings | undefined
+  const syncPaygate = (): void => {
+    if (paygate === undefined) return
+    if (paygateApplied === undefined) { paygateApplied = live; return }
+    if (!paygateFieldsChanged(paygateApplied, live)) return
+    paygateApplied = live
+    log('info', 'paygate settings changed; restarting the payment gateway')
+    paygate.restart()
+  }
   if (settingsNow !== undefined) {
     const scope = settingsNow.register(SETTINGS_NAMESPACE as SettingsNamespace, SOULMIRROR_SETTINGS_SCHEMA, { base: config, applies: 'restart' })
     effective = resolveSettings(scope.get() as Partial<SoulmirrorSettings>)
@@ -75,14 +97,17 @@ export function apply(ctx: Context, config: Config = {}): void {
     scope.watch(() => {
       live = resolveSettings(scope.get() as Partial<SoulmirrorSettings>)
       log('info', `settings changed (tier=${live.defaultTier}, autoReplyPerHour=${live.autoReplyPerHour}, directSend=${String(live.directSend)} apply now; connection fields apply when the plugin reloads)`)
+      syncPaygate()
     })
   } else {
     ctx.inject(['settings'], (sctx) => {
       const scope = sctx.settings.register(SETTINGS_NAMESPACE as SettingsNamespace, SOULMIRROR_SETTINGS_SCHEMA, { base: config, applies: 'restart' })
       live = resolveSettings(scope.get() as Partial<SoulmirrorSettings>)
+      syncPaygate() // settings loaded after the gateway was spawned → respawn with them
       scope.watch(() => {
         live = resolveSettings(scope.get() as Partial<SoulmirrorSettings>)
         log('info', 'settings changed; alter fields apply now, connection fields when the plugin reloads')
+        syncPaygate()
       })
     })
   }
@@ -110,6 +135,32 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.effect(() => () => {
     void client.dispose().catch((error: unknown) => { log('warn', `dispose failed: ${String(error)}`) })
   }, 'soulmirror-network: backend process')
+
+  // Local payment gateway (USDC via CDP). Spawned alongside the peer; the fake
+  // backend cannot sign A2A requests, so it is skipped there.
+  let paygate: PaygateClient | undefined
+  if (effective.backend !== 'fake') {
+    paygate = createPaygateClient({
+      home,
+      net: client,
+      settings: () => ({
+        paygateBinary: live.paygateBinary,
+        paygateProxy: live.paygateProxy,
+        paygatePort: live.paygatePort,
+        cdpKeyId: live.cdpKeyId,
+        cdpKeySecret: live.cdpKeySecret,
+        cdpWalletSecret: live.cdpWalletSecret,
+        cdpNetwork: live.cdpNetwork,
+      }),
+      logger: (message) => log('info', message),
+    })
+    paygate.start()
+    paygateApplied = { ...live } // baseline: what this spawn used
+    ctx.effect(() => () => {
+      void paygate?.dispose().catch((error: unknown) => { log('warn', `paygate dispose failed: ${String(error)}`) })
+    }, 'soulmirror-network: payment gateway')
+  }
+  ctx.provide('soulmirrorPay', paygate)
 
   mountApi(ctx, {
     client,

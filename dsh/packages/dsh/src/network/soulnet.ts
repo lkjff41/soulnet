@@ -43,6 +43,8 @@ import {
   type NetworkEvent,
   type PendingRequest,
   type SendReceipt,
+  type CapabilityProfile,
+  type DirectoryHit,
 } from './types.ts'
 
 export const DEFAULT_RELAY = 'https://relay.startupworld.cn'
@@ -754,6 +756,12 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
     start,
     status: () => status,
     identity,
+    signRequest: async (method, path, ts) => {
+      const r = await call<{ signature?: string }>('identity.signRequest', { method, path, ts })
+      const signature = str(r.signature)
+      if (signature === '') throw new NetworkError('identity.signRequest returned no signature', -32603)
+      return signature
+    },
     createIdentity: async (name) => {
       const r = await call<{ identity?: WireIdentity }>('identity.create', { name })
       cachedCardUri = undefined
@@ -764,6 +772,26 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
     parseCard: async (uri) => {
       const r = await call<{ uri?: string; fingerprint?: string; card?: WireCard }>('card.parse', { uri })
       return { fp: fp(str(r.fingerprint)), name: str(r.card?.name), uri: str(r.uri, uri) }
+    },
+    profile: {
+      get: async () => {
+        const r = await call<{ profile?: CapabilityProfile | null }>('profile.get')
+        return r.profile === undefined || r.profile === null ? undefined : r.profile
+      },
+      save: async (profile) => {
+        const r = await call<{ profile?: CapabilityProfile }>('profile.save', { profile })
+        return r.profile ?? profile
+      },
+    },
+    directory: {
+      fetch: async (fp) => {
+        const r = await call<{ entry?: DirectoryHit | null }>('directory.fetch', { fp })
+        return r.entry === undefined || r.entry === null ? null : r.entry
+      },
+      publish: async (profile) => {
+        const r = await call<{ ok?: boolean; published?: boolean }>('directory.publish', { ...(profile === undefined ? {} : { profile }) })
+        return { ok: r.ok === true, published: r.published === true }
+      },
     },
     friends: {
       list: async () => {

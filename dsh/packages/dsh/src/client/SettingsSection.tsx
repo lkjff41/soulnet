@@ -29,6 +29,13 @@ export interface SoulmirrorSettingsValues {
   defaultTier?: ReplyTier
   autoReplyPerHour?: number
   directSend?: boolean
+  paygateBinary?: string
+  paygatePort?: number
+  paygateProxy?: string
+  cdpKeyId?: string
+  cdpKeySecret?: string
+  cdpWalletSecret?: string
+  cdpNetwork?: string
 }
 
 export interface SoulmirrorSettingsInjected {
@@ -88,7 +95,7 @@ function SettingField({ label, field, scope, values, user, writable, type = 'tex
   values: SoulmirrorSettingsValues | undefined
   user: Record<string, unknown>
   writable: boolean
-  type?: 'text' | 'select' | 'number'
+  type?: 'text' | 'password' | 'select' | 'number'
   options?: readonly string[]
   optionLabel?: (option: string) => string
   min?: number
@@ -111,7 +118,7 @@ function SettingField({ label, field, scope, values, user, writable, type = 'tex
             {(options ?? []).map(o => <option key={o} value={o}>{optionLabel === undefined ? o : optionLabel(o)}</option>)}
           </select>
         )
-        : <input style={input} type={type === 'number' ? 'number' : 'text'} min={min} value={draft} disabled={!writable} onChange={e => { setDraft(e.target.value) }} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') commit() }} data-soulmirror-setting={field} />}
+        : <input style={input} type={type === 'password' ? 'password' : (type === 'number' ? 'number' : 'text')} min={min} value={draft} disabled={!writable} onChange={e => { setDraft(e.target.value) }} onBlur={commit} onKeyDown={(e) => { if (e.key === 'Enter') commit() }} data-soulmirror-setting={field} />}
     </label>
   )
 }
@@ -242,6 +249,19 @@ export function SoulmirrorSettingsSection({ openSession, scope, t }: SoulmirrorS
           <span>{t('settings.alter.directSend')}</span>
         </label>
         <ProtocolEditor t={t} />
+      </div>
+
+      <div style={card} data-soulmirror-settings-pay>
+        <h4 style={h4}>{t('settings.pay')}</h4>
+        <p style={small}>{t('settings.pay.intro')}</p>
+        <SettingField label={t('settings.pay.cdpKeyId')} field="cdpKeyId" scope={scope} values={settings.value} user={userLayer} writable={writable} />
+        <SettingField label={t('settings.pay.cdpKeySecret')} field="cdpKeySecret" scope={scope} values={settings.value} user={userLayer} writable={writable} type="password" />
+        <SettingField label={t('settings.pay.cdpWalletSecret')} field="cdpWalletSecret" scope={scope} values={settings.value} user={userLayer} writable={writable} type="password" />
+        <SettingField label={t('settings.pay.cdpNetwork')} field="cdpNetwork" scope={scope} values={settings.value} user={userLayer} writable={writable} type="select" options={['base-sepolia', 'base']} />
+        <SettingField label={t('settings.pay.paygateProxy')} field="paygateProxy" scope={scope} values={settings.value} user={userLayer} writable={writable} />
+        <SettingField label={t('settings.pay.paygateBinary')} field="paygateBinary" scope={scope} values={settings.value} user={userLayer} writable={writable} />
+        <SettingField label={t('settings.pay.paygatePort')} field="paygatePort" scope={scope} values={settings.value} user={userLayer} writable={writable} type="number" min={1} />
+        <p style={small}>{t('settings.pay.hint')}</p>
       </div>
 
 

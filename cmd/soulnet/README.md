@@ -39,6 +39,7 @@ The `initialize` result carries the `methods` / `notifications` lists for capabi
 | `initialize` | `{name?}` | `{protocol, version, home, relay, identity\|null, running, methods[], notifications[]}` | With `name` and no identity yet → creates the identity on the way; then makes sure the receive loop is running |
 | `identity.get` | — | `{identity\|null}` | `identity = {name, fingerprint, ed_pub, x_pub, proxies[], created_at}`, **without private keys** |
 | `identity.create` | `{name}` | `{identity, running}` | Identity already exists → `-32003` |
+| `identity.signRequest` | `{method, path, ts}` | `{signature}` | Sign an A2A request (`method+path+ts`, same bytes as the relay's `VerifyRequest`) with the identity's private key. The key never leaves the peer — local services (e.g. the payment gateway) verify with the public key/fingerprint from `identity.json`. No identity → `-32001` |
 | `card.get` | — | `{uri, fingerprint, card}` | The local card (`soulmirror://card?…` link + structure) |
 | `card.parse` | `{uri}` | `{uri, fingerprint, card}` | Parse and verify someone else's card link |
 | `friends.list` | — | `{friends[], pending[]}` | `friends[i]` = friend + `{count, unread, last, typing}`; `pending` = pending requests |

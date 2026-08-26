@@ -239,6 +239,28 @@ export class NetworkError extends Error {
   }
 }
 
+/** The capability profile (a2a/profile.json) as seen by the plugin. Extra fields
+ * (skills, contexts, …) pass through untouched — the peer signs what it gets. */
+export interface CapabilityProfile {
+  v?: number
+  fingerprint?: string
+  tags?: readonly string[]
+  summary?: string
+  intro?: string
+  accepting?: boolean
+  updated_at?: string
+  sig?: string
+  /** Public USDC (Base) wallet address; lets other agents pay this alter. */
+  usdc_address?: string
+  [key: string]: unknown
+}
+
+/** A directory hit: the published card plus an optional signed profile. */
+export interface DirectoryHit {
+  readonly profile?: CapabilityProfile
+  [key: string]: unknown
+}
+
 /** soulnet application error codes (branch on these, never on message text). */
 export const NetworkErrorCode = {
   noIdentity: -32001,
@@ -259,6 +281,8 @@ export interface NetworkClient {
   /** `undefined` until an identity was created (first run). */
   identity(): Promise<Identity | undefined>
   createIdentity(name: string): Promise<Identity>
+  /** Sign an A2A request (`method`+`path`+`ts`, relay VerifyRequest bytes) with the identity's private key. The key never leaves the backend — local services (e.g. the payment gateway) verify it with the public key from identity.json. No identity → NetworkErrorCode.noIdentity. */
+  signRequest(method: string, path: string, ts: string): Promise<string>
   /** Own card URI (`soulmirror://card?...`). */
   card(): Promise<string>
   parseCard(uri: string): Promise<{ fp: Fingerprint; name: string; uri: string }>
@@ -274,6 +298,20 @@ export interface NetworkClient {
     remove(fp: Fingerprint): Promise<void>
     /** A friend's card URI (from the card snapshot), e.g. to forward it. Not a friend → NetworkErrorCode.notFriend. */
     card(fp: Fingerprint): Promise<{ fp: Fingerprint; name: string; uri: string }>
+  }
+  /** Capability profile (published to the directory): `usdc_address` is how other agents find this alter's wallet. */
+  readonly profile: {
+    /** The local capability profile, or undefined when none was saved yet. */
+    get(): Promise<CapabilityProfile | undefined>
+    /** Save + sign the profile locally (does NOT publish). */
+    save(profile: CapabilityProfile): Promise<CapabilityProfile>
+  }
+  /** The opt-in capability directory (relay side): how agents find each other's wallet addresses. */
+  readonly directory: {
+    /** Fetch one entry (card + signed profile) by fingerprint. null when absent. */
+    fetch(fp: Fingerprint): Promise<DirectoryHit | null>
+    /** Publish the saved profile (signed) to the directory. */
+    publish(profile?: CapabilityProfile): Promise<{ ok: boolean; published: boolean }>
   }
   readonly groups: {
     list(): Promise<readonly Group[]>
