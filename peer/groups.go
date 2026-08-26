@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -709,6 +710,14 @@ func (n *Peer) groupNotifyUpdate(ctx context.Context, st *a2a.GroupState, note s
 	}
 }
 
+// relayForbidden: the relay refused us by STATUS (403) - the only reliable
+// signal that we are no longer a member. Message text is localized per relay
+// implementation and must never be matched.
+func relayForbidden(err error) bool {
+	var re *a2a.RelayError
+	return errors.As(err, &re) && re.StatusCode == http.StatusForbidden
+}
+
 // refreshRoster refetches the roster from the group relay and applies it: version must
 // increase and the owner must be unchanged. Removals trigger a rekey; my own removal
 // forgets the group.
@@ -720,7 +729,7 @@ func (n *Peer) refreshRoster(ctx context.Context, gid string) {
 	fetched, err := n.groupRelayClient(st.Roster.Relay).FetchGroup(ctx, gid)
 	if err != nil {
 		n.logf("group %s: roster refresh failed: %v", a2a.ShortFp(gid), err)
-		if strings.Contains(err.Error(), "not a member") {
+		if relayForbidden(err) {
 			// The relay no longer counts us as a member: we were removed.
 			_ = n.Groups.Remove(gid)
 			n.emit(Event{Kind: EventGroupUpdated, GID: gid, TS: time.Now()})
