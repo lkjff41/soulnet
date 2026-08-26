@@ -17,7 +17,6 @@ import { GroupCreateDialog } from './GroupCreateDialog.tsx'
 import type { Translate } from './translate.ts'
 import { formatAge, previewOf, type InboxFriend } from './inbox-state.ts'
 import { agentKey, ALTER_KEY, groupKey, type Col2Tab } from './page-state.ts'
-import { upgradeStore } from './upgrade-store.ts'
 import { AgentSettingsSheet } from './AgentSettingsSheet.tsx'
 import { pageStore } from './page-store.ts'
 import { SoulMirrorIcon } from './SidebarEntry.tsx'
@@ -277,31 +276,8 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
     })
   }
 
-  const upgrade = useSyncExternalStore(upgradeStore.subscribe, upgradeStore.getSnapshot)
-  const upgradeBusy = upgrade.phase === 'installing' || upgrade.phase === 'restarting' || upgrade.phase === 'reloading'
-
   return (
     <aside className="sm-list-col" data-soulmirror-page-list>
-      {upgrade.hasUpdate || upgradeBusy
-        ? (
-          <button
-            type="button"
-            className="sm-update-banner"
-            disabled={upgradeBusy}
-            data-soulmirror-update-banner={upgrade.latest}
-            onClick={() => {
-              if (upgradeBusy || upgrade.latest === undefined) return
-              void upgradeStore.run()
-            }}
-          >
-            {upgradeBusy
-              ? upgrade.phase === 'installing'
-                ? t('page.update.installing', { v: upgrade.latest ?? '' })
-                : upgrade.phase === 'restarting' ? t('page.update.restarting') : t('page.update.reloading')
-              : t('page.update.banner', { v: upgrade.latest ?? '' })}
-          </button>
-        )
-        : null}
       <div className="sm-list-head">
         <div style={{ flex: 1, minWidth: 0, display: 'grid', gap: 1 }}>
           <div className="sm-list-head-title">

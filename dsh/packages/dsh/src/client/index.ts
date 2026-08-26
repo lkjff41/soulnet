@@ -110,7 +110,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'soulmirror-update',
-    order: -1,
+    order: 1,
     locale: NS,
   }, UpdateAction))
   //     … and, when the SoulMirror sidebar (soulnet-dsh-sidebar) is installed,

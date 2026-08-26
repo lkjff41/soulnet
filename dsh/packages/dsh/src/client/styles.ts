@@ -12,20 +12,26 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
-.sm-update-action, .sm-update-action:hover {
-  background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted);
-  font-weight: 600;
+/* Icon-only update button at the right end of the SoulMirror foot row:
+   invisible until a release is known, small circled arrow, tooltip carries
+   the words. Sits beside the entry (the row is a flex line). */
+.sm-update-fab {
+  flex: none; align-self: center; width: 24px; height: 24px; margin: 4px 2px 0 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--dsw-alias-brand-primary); border-radius: 50%;
+  background: transparent; color: var(--dsw-alias-brand-primary); cursor: pointer; padding: 0;
 }
-.sm-update-action:hover { filter: brightness(1.08); }
-.sm-update-action:disabled { opacity: .75; cursor: default; }
+.sm-update-fab:hover { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); }
+.sm-update-fab:disabled, .sm-update-fab.sm-busy { opacity: .8; cursor: default; }
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  padding: 2px 9px; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 999px;
+  background: transparent; color: var(--dsw-alias-brand-primary);
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.sm-update-chip:hover { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); }
+.sm-update-chip:disabled { opacity: .75; cursor: default; }
+.sm-update-chip.sm-rail { padding: 2px 6px; }
 
-.sm-update-banner {
-  flex: none; margin: 8px 10px 0; padding: 7px 10px; border: none; border-radius: 9px;
-  background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted);
-  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;
-}
-.sm-update-banner:hover { filter: brightness(1.08); }
-.sm-update-banner:disabled { opacity: .7; cursor: default; }
 
 /* Native form controls follow the ACTIVE theme: the option list of a <select>
    (and scrollbars, checkboxes...) is OS-rendered and ignores CSS tokens - it
@@ -34,8 +40,8 @@ body[data-ds-dark-theme] { color-scheme: dark; }
 .sm-page-root select option, .sm-page-root select optgroup { background: var(--dsw-specific-menu); color: var(--dsw-alias-label-primary); }
 
 .sm-footer {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  width: calc(100% + 4px); height: 42px; margin: 4px -2px 0; padding: 0 10px 0 8px;
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  width: auto; height: 42px; margin: 4px -2px 0; padding: 0 10px 0 8px;
   box-sizing: border-box; border: none; border-radius: 12px; background: transparent;
   cursor: pointer; overflow: hidden; color: var(--dsw-alias-label-primary);
   font-family: inherit; font-size: 14px; line-height: 22px; position: relative;
