@@ -291,10 +291,14 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
             data-soulmirror-update-banner={upgrade.latest}
             onClick={() => {
               if (upgradeBusy || upgrade.latest === undefined) return
-              if (window.confirm(t('page.update.confirm', { v: upgrade.latest }))) void upgradeStore.run()
+              void upgradeStore.run()
             }}
           >
-            {upgradeBusy ? t('page.update.busy') : t('page.update.banner', { v: upgrade.latest ?? '' })}
+            {upgradeBusy
+              ? upgrade.phase === 'installing'
+                ? t('page.update.installing', { v: upgrade.latest ?? '' })
+                : upgrade.phase === 'restarting' ? t('page.update.restarting') : t('page.update.reloading')
+              : t('page.update.banner', { v: upgrade.latest ?? '' })}
           </button>
         )
         : null}

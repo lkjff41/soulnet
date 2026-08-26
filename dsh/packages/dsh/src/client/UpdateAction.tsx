@@ -1,9 +1,9 @@
 /**
  * Sidebar-foot upgrade button (list seat `sidebar.footer.action`, stacked
  * above the SoulMirror entry): hidden until a newer release is known, then a
- * brand-colored one-click button. Clicking confirms and runs the full
- * install-restart-reload chain; the label narrates the busy phases and the
- * button disappears by itself once the reloaded page re-checks as current.
+ * brand-colored one-click button. One click runs the full
+ * install-restart-reload chain; the label narrates each phase live, and the
+ * button removes itself once the reloaded page re-checks as current.
  */
 import { useSyncExternalStore } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -15,7 +15,13 @@ export function UpdateAction({ wide, t }: { wide: boolean } & PropsLocale<typeof
   const upgrade = useSyncExternalStore(upgradeStore.subscribe, upgradeStore.getSnapshot)
   const busy = upgrade.phase === 'installing' || upgrade.phase === 'restarting' || upgrade.phase === 'reloading'
   if (!upgrade.hasUpdate && !busy) return null
-  const label = busy ? t('sidebar.update.busy') : t('sidebar.update', { v: upgrade.latest ?? '' })
+  const label = busy
+    ? upgrade.phase === 'installing'
+      ? t('page.update.installing', { v: upgrade.latest ?? '' })
+      : upgrade.phase === 'restarting'
+        ? t('page.update.restarting')
+        : t('page.update.reloading')
+    : t('sidebar.update', { v: upgrade.latest ?? '' })
   return (
     <Tooltip label={label} delayMs={300} disabled={wide}>
       <button
@@ -25,7 +31,7 @@ export function UpdateAction({ wide, t }: { wide: boolean } & PropsLocale<typeof
         data-soulmirror-update-action={upgrade.latest}
         onClick={() => {
           if (busy || upgrade.latest === undefined) return
-          if (window.confirm(t('page.update.confirm', { v: upgrade.latest }))) void upgradeStore.run()
+          void upgradeStore.run()
         }}
       >
         <span aria-hidden style={{ fontSize: wide ? 14 : 16, lineHeight: 1 }}>{busy ? '⏳' : '⬆'}</span>
