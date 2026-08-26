@@ -12,6 +12,13 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
+.sm-update-action, .sm-update-action:hover {
+  background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted);
+  font-weight: 600;
+}
+.sm-update-action:hover { filter: brightness(1.08); }
+.sm-update-action:disabled { opacity: .75; cursor: default; }
+
 .sm-update-banner {
   flex: none; margin: 8px 10px 0; padding: 7px 10px; border: none; border-radius: 9px;
   background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted);

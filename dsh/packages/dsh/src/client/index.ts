@@ -49,7 +49,7 @@ import { pageStore } from './page-store.ts'
 import { SidebarEntry } from './SidebarEntry.tsx'
 import { SidebarNavEntry } from './SidebarNavEntry.tsx'
 import { SoulmirrorPage, type SoulmirrorPageInjected } from './SoulmirrorPage.tsx'
-import { UpdateTrigger } from './UpdateTrigger.tsx'
+import { UpdateAction } from './UpdateAction.tsx'
 import { upgradeStore } from './upgrade-store.ts'
 import { ensureStyles, removeStyles } from './styles.ts'
 
@@ -105,6 +105,14 @@ export function apply(ctx: ClientContext): void {
     order: 0,
     locale: NS,
   }, SidebarEntry))
+  //     A one-click upgrade button appears in the same foot stack whenever a
+  //     newer release is known (owner-requested: a real button, not a dot).
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'soulmirror-update',
+    order: -1,
+    locale: NS,
+  }, UpdateAction))
   //     … and, when the SoulMirror sidebar (soulnet-dsh-sidebar) is installed,
   //     the same entry as the first primary-nav row under New Session; the
   //     foot entry then hides itself (nav-seat.ts). This inject callback only
@@ -189,15 +197,6 @@ export function apply(ctx: ClientContext): void {
     openSession,
     scope,
   })
-  // The Settings BUTTON itself carries the update dot: take over the single
-  // settings.trigger seat (same icon+label as the default occupant, plus a
-  // reactive red dot; -10 shadows the shipped registrant like the brand seat).
-  ctx.slots.inject('settings.trigger', () => ctx.slots.register({
-    name: 'settings.trigger',
-    priority: -10,
-    locale: NS,
-  }, UpdateTrigger))
-
   ctx.slots.inject('settings.section', () => {
     // The host evaluates a slot label ONCE at registration - the silent
     // update check answers later, so a label function alone never grows its
