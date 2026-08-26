@@ -12,6 +12,18 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
+/* New-mail toast: our own pill (the host Toast surface stays light on the
+   dark theme). Fixed top-center, themed, auto-dismissing. */
+.sm-mail-toast {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 8px; max-width: min(420px, 80vw);
+  padding: 8px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px;
+  background: var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2)); color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-shadow-lv3, 0 8px 24px rgba(0,0,0,.35)); cursor: pointer;
+  font: inherit; font-size: 12px; animation: sm-page-in 140ms ease-out;
+}
+.sm-mail-toast:hover { border-color: var(--dsw-alias-brand-primary); }
+
 /* Icon-only update button at the right end of the SoulMirror foot row:
    invisible until a release is known, small circled arrow, tooltip carries
    the words. Sits beside the entry (the row is a flex line). */
