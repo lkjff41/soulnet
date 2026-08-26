@@ -82,8 +82,14 @@ func (n *Peer) Run(ctx context.Context) error {
 		hadTransient := false
 		for i := range items {
 			it := &items[i]
+			src := a2a.ShortFp(fingerprintOfB64(it.Envelope.From))
+			gidTag := ""
+			if it.Envelope.GID != "" {
+				gidTag = " gid=" + a2a.ShortFp(it.Envelope.GID)
+			}
 			err := n.handleEnvelope(&it.Envelope)
 			if err == nil {
+				n.logf(">>> mail from=%s%s ok", src, gidTag)
 				acks = append(acks, it.AckID)
 				continue
 			}
@@ -91,6 +97,7 @@ func (n *Peer) Run(ctx context.Context) error {
 				return nil
 			}
 			if isPermanent(err) {
+				n.logf(">>> mail from=%s%s REJECTED: %v", src, gidTag, err)
 				n.noteDeadLetter(it.AckID, err)
 				acks = append(acks, it.AckID)
 				continue

@@ -403,6 +403,8 @@ func (n *Peer) GroupSend(ctx context.Context, gid, body string, opts GroupSendOp
 		n.logf("group %s: fan-out delivery failed: %v", a2a.ShortFp(gid), err)
 		res.Status = "error"
 		go n.refreshRoster(context.Background(), gid) // maybe the roster moved on without us
+	} else {
+		n.logf("<<< group mail gid=%s id=%s by=%s", a2a.ShortFp(gid), msg.ID, msg.By)
 	}
 	seq, err := n.Convs.AppendSeq(a2a.GroupConvKey(gid), &a2a.ConvEntry{Dir: "out", Message: *msg, Status: res.Status})
 	if err != nil {
