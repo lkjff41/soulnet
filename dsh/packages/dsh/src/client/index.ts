@@ -188,14 +188,32 @@ export function apply(ctx: ClientContext): void {
     openSession,
     scope,
   })
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'soulmirror',
-    order: 80,
-    locale: NS,
-    label: () => upgradeStore.getSnapshot().hasUpdate ? `${t('settings.nav')} ●` : t('settings.nav'),
-    inject: settingsInjected,
-  }, SoulmirrorSettingsSection))
+  ctx.slots.inject('settings.section', () => {
+    // The host evaluates a slot label ONCE at registration - the silent
+    // update check answers later, so a label function alone never grows its
+    // dot. Re-register the section whenever hasUpdate flips.
+    const make = (): (() => void) => ctx.slots.register({
+      name: 'settings.section',
+      id: 'soulmirror',
+      order: 80,
+      locale: NS,
+      label: () => upgradeStore.getSnapshot().hasUpdate ? `${t('settings.nav')} ●` : t('settings.nav'),
+      inject: settingsInjected,
+    }, SoulmirrorSettingsSection)
+    let hadUpdate = upgradeStore.getSnapshot().hasUpdate
+    let disposeSection = make()
+    const unsubscribe = upgradeStore.subscribe(() => {
+      const now = upgradeStore.getSnapshot().hasUpdate
+      if (now === hadUpdate) return
+      hadUpdate = now
+      disposeSection()
+      disposeSection = make()
+    })
+    return () => {
+      unsubscribe()
+      disposeSection()
+    }
+  })
 
   // 4. First-run onboarding: create the identity (after dsh's own welcome/model steps).
   ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
