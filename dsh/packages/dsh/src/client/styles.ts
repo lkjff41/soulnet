@@ -12,6 +12,12 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
+/* Native form controls follow the ACTIVE theme: the option list of a <select>
+   (and scrollbars, checkboxes...) is OS-rendered and ignores CSS tokens - it
+   only obeys color-scheme. dsh marks its dark theme on <body>. */
+body[data-ds-dark-theme] { color-scheme: dark; }
+.sm-select option { background: var(--dsw-specific-menu); color: var(--dsw-alias-label-primary); }
+
 .sm-footer {
   flex: none; display: flex; align-items: center; gap: 8px;
   width: calc(100% + 4px); height: 42px; margin: 4px -2px 0; padding: 0 10px 0 8px;
