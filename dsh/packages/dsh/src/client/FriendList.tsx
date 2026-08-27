@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Button, IconCheckOutline14, IconCloseFill14, IconCloseOutline16, IconCopyOutline16, IconRefreshOutline14, IconSearchOutline16, Tooltip, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ProtocolEditor, TierPill } from './alter-ui.tsx'
+import { paidJoinFromRules } from '../group-contract.ts'
 import { api, networkStore, type ApiGroup, type ApiGroupProfile } from './api.ts'
 import { GroupCreateDialog } from './GroupCreateDialog.tsx'
 import type { Translate } from './translate.ts'
@@ -156,7 +157,14 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
   const [note, setNote] = useState<{ kind: 'ok' | 'error'; text: string } | undefined>(undefined)
   const [protocolOpen, setProtocolOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
+  const [walletAddress, setWalletAddress] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    void api.payWallet().then((r) => { setWalletAddress(r.wallet?.address) }).catch(() => { /* no gateway / no wallet */ })
+  }, [])
   const [joinUri, setJoinUri] = useState('')
+  /** The join dialog's group card lookup (paid groups require a payment proof). */
+  const [joinCard, setJoinCard] = useState<{ name: string; join: string; price?: string; addr?: string } | undefined>(undefined)
+  const [joinTx, setJoinTx] = useState('')
   /** The WeChat-style "+" menu and the small dialog it opens. */
   const [plusOpen, setPlusOpen] = useState(false)
   const [agentSheetOpen, setAgentSheetOpen] = useState(false)
@@ -264,9 +272,34 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
   const submitJoin = (): void => {
     if (busy !== undefined || joinUri.trim() === '' || identity === null) return
     void run('group.apply', async () => {
+      // Paid groups: the applicant must attach a payment proof (pay at
+      // application time) — plain applies are refused.
+      let card: Awaited<ReturnType<typeof api.groupLookup>>['card'] = null
+      try {
+        card = (await api.groupLookup(joinUri.trim())).card
+      } catch {
+        card = null
+      }
+      const paid = card !== null
+        ? card.join === 'paid'
+          ? { price: card.joinPrice, addr: card.joinAddr }
+          : paidJoinFromRules(card.rulesHead)
+        : undefined
+      setJoinCard(card === null ? undefined : { name: card.name, join: card.join, ...(paid === undefined ? {} : { price: paid.price, addr: paid.addr }) })
+      if (paid !== undefined) {
+        if (paid.price === undefined || paid.addr === undefined) {
+          throw new Error(t('group.join.paid.noPrice'))
+        }
+        if (joinTx.trim() === '') {
+          throw new Error(t('group.join.paid.needProof', { price: paid.price, addr: paid.addr }))
+        }
+        const { gid } = await api.groupApply(joinUri.trim(), t('group.join.paid.note', { price: paid.price }), { tx_hash: joinTx.trim(), amount: paid.price, to: paid.addr })
+        setJoinUri(''); setJoinTx(''); setJoinCard(undefined); setDialog(undefined)
+        if (gid !== '') onSelect(groupKey(gid))
+        return t('group.join.paid.applied')
+      }
       const { gid } = await api.groupApply(joinUri.trim())
-      setJoinUri('')
-      setDialog(undefined)
+      setJoinUri(''); setJoinCard(undefined); setDialog(undefined)
       if (gid !== '') onSelect(groupKey(gid))
       return t('group.join.applied')
     })
@@ -556,6 +589,7 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
               t={t}
               friends={inbox.friends}
               busy={busy !== undefined}
+              {...(walletAddress === undefined ? {} : { walletAddress })}
               onCreate={createGroup}
               onClose={() => { setCreateOpen(false) }}
             />
@@ -630,14 +664,33 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                   placeholder={t('group.join.uri')}
                   value={joinUri}
                   autoFocus
-                  onChange={(e) => { setJoinUri(e.target.value) }}
+                  onChange={(e) => { setJoinUri(e.target.value); setJoinCard(undefined); setJoinTx('') }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitJoin() }}
                   data-soulmirror-group-join-uri
                 />
               </label>
+              {joinCard !== undefined && joinCard.price !== undefined && joinCard.addr !== undefined
+                ? (
+                  <>
+                    <p style={{ fontSize: '0.85em', margin: 0, opacity: 0.85 }} data-soulmirror-group-join-paid>
+                      {t('group.join.paid.info', { price: joinCard.price, addr: joinCard.addr })}
+                    </p>
+                    <label className="sm-field">
+                      <span>{t('group.join.paid.tx')}</span>
+                      <input
+                        className="sm-input"
+                        placeholder="0x…"
+                        value={joinTx}
+                        onChange={(e) => { setJoinTx(e.target.value) }}
+                        data-soulmirror-group-join-tx
+                      />
+                    </label>
+                  </>
+                )
+                : null}
               <div className="sm-modal-foot">
                 <Button variant="outline" size="sm" onClick={() => { setDialog(undefined) }}>{t('inbox.close')}</Button>
-                <Button variant="outline" size="sm" disabled={busy !== undefined || joinUri.trim() === ''} onClick={submitJoin} data-soulmirror-group-join-apply>
+                <Button variant="outline" size="sm" disabled={busy !== undefined || joinUri.trim() === '' || (joinCard?.price !== undefined && joinTx.trim() === '')} onClick={submitJoin} data-soulmirror-group-join-apply>
                   {t('group.join.apply')}
                 </Button>
               </div>

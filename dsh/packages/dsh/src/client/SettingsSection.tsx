@@ -88,6 +88,55 @@ export function CardBlock({ cardUri, home, t }: { cardUri: string; home: string;
   )
 }
 
+
+export function WalletBlock({ t }: { t: SoulmirrorSettingsProps['t'] }) {
+  const [copied, copy] = useCopy()
+  const [wallet, setWallet] = useState<{ address?: string; network?: string; balance_usdc?: string; balance_eth?: string } | null | undefined>(undefined)
+  const [err, setErr] = useState<string | undefined>(undefined)
+  const refresh = useCallback(() => {
+    void api.payWallet().then((r) => {
+      setWallet(r.wallet ?? null)
+      setErr(r.error)
+    }).catch(() => { setWallet(null) })
+  }, [])
+  useEffect(() => { refresh() }, [refresh])
+  return (
+    <div style={card} data-soulmirror-wallet-block>
+      <h4 style={h4}>{t('settings.wallet')}</h4>
+      {wallet === undefined
+        ? <p style={small}>{t('settings.wallet.loading')}</p>
+        : wallet === null
+          ? (
+            <>
+              <p style={small}>{err !== undefined ? err : t('settings.wallet.none')}</p>
+              <div style={rowStyle}>
+                <button type="button" onClick={refresh} data-soulmirror-wallet-refresh>{t('settings.wallet.refresh')}</button>
+              </div>
+            </>
+          )
+          : (
+            <>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={rowStyle}>
+                  <span style={{ opacity: 0.8, fontSize: '0.82em' }}>{t('settings.wallet.address')}</span>
+                  {wallet.network !== undefined ? <span style={{ ...small, fontSize: '0.75em' }}>{wallet.network}</span> : null}
+                </div>
+                <div style={mono} data-soulmirror-wallet-address>{wallet.address}</div>
+                <div style={rowStyle}>
+                  <button type="button" onClick={() => { void copy(wallet.address ?? '') }}>{copied ? t('settings.card.copied') : t('settings.card.copy')}</button>
+                  <button type="button" onClick={refresh} data-soulmirror-wallet-refresh>{t('settings.wallet.refresh')}</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginTop: 2 }}>
+                  <span style={small}>{t('settings.wallet.balanceUsdc')}: <strong>{wallet.balance_usdc ?? '—'}</strong></span>
+                  <span style={small}>{t('settings.wallet.balanceEth')}: <strong>{wallet.balance_eth ?? '—'}</strong></span>
+                </div>
+              </div>
+            </>
+          )}
+    </div>
+  )
+}
+
 function SettingField({ label, field, scope, values, user, writable, type = 'text', options, optionLabel, min }: {
   label: string
   field: keyof SoulmirrorSettingsValues
@@ -250,6 +299,8 @@ export function SoulmirrorSettingsSection({ openSession, scope, t }: SoulmirrorS
         </label>
         <ProtocolEditor t={t} />
       </div>
+
+      <WalletBlock t={t} />
 
       <div style={card} data-soulmirror-settings-pay>
         <h4 style={h4}>{t('settings.pay')}</h4>

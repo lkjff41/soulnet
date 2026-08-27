@@ -113,7 +113,13 @@ export interface GroupProfile {
   /** Which MEMBERS may post at all ("" = all). */
   readonly speakWho?: 'all' | 'owner' | 'admins'
   /** Join policy ("" = invite). */
-  readonly join?: 'invite' | 'apply' | 'open'
+  readonly join?: 'invite' | 'apply' | 'open' | 'paid'
+  /** Paid-join price in USDC decimal ("1.00"); required when join = paid. */
+  readonly joinPrice?: string
+  /** Paid-join receiving address (0x, Base); required when join = paid. */
+  readonly joinAddr?: string
+  /** Payment instruction shown to applicants (display only). */
+  readonly joinNote?: string
   /** When a member's alter wakes on group traffic ("" = mention). */
   readonly agentWake?: 'mention' | 'always' | 'never'
   /** Default reply tier of alters in this group ("" = draft). */
@@ -140,11 +146,33 @@ export interface GroupPin {
 }
 
 /** One pending application of a stranger to join the group (owner only). */
+export interface JoinPayment {
+  readonly tx_hash: string
+  readonly amount: string
+  readonly to: string
+  readonly note?: string
+}
+
 export interface GroupApplication {
   readonly fp: Fingerprint
   readonly name: string
   readonly note: string
   readonly ts?: number
+  /** Paid-join proof when the group's join policy is "paid". */
+  readonly payment?: JoinPayment
+}
+
+/** A group's PUBLIC card (from `group.lookup`): what a stranger sees before applying. */
+export interface GroupCardView {
+  readonly gid: string
+  readonly name: string
+  readonly join: string
+  readonly members: number
+  readonly joinPrice?: string
+  readonly joinAddr?: string
+  readonly joinNote?: string
+  /** First ~280 chars of the group rules (may carry the paid-join marker). */
+  readonly rulesHead?: string
 }
 
 /** One group I am in (sender-key fan-out group, wire spec §14). */
@@ -228,8 +256,8 @@ export type NetworkEvent =
   | { readonly kind: 'group_typing'; readonly gid: string; readonly fp: Fingerprint; readonly agent?: string; readonly on: boolean }
   /** Joined / roster changed / left one group — refetch the group list. */
   | { readonly kind: 'group_update'; readonly gid: string }
-  /** A stranger applied to join one of my groups (owner side). */
-  | { readonly kind: 'group_application'; readonly gid: string; readonly request: { readonly fp: Fingerprint; readonly name: string; readonly note: string } }
+  /** A stranger applied to join one of my groups (owner side); `request.payment` is the paid-join proof when the group's join policy is "paid". */
+  | { readonly kind: 'group_application'; readonly gid: string; readonly request: { readonly fp: Fingerprint; readonly name: string; readonly note: string; readonly payment?: JoinPayment } }
 
 /** Error raised by a backend call; `code` follows the soulnet JSON-RPC table (cmd/soulnet/README.md). */
 export class NetworkError extends Error {
@@ -336,8 +364,10 @@ export interface NetworkClient {
     pin(gid: string, body: string): Promise<void>
     /** Remove one pin by id (owner/admin). */
     unpin(gid: string, id: string): Promise<void>
-    /** Apply to join a group from its public URI (`soulmirror://group?gid=…&relay=…`). */
-    apply(uri: string, note?: string): Promise<{ gid: string }>
+    /** Fetch a group's PUBLIC card (join policy, paid-join price/address) from its URI. */
+    lookup(uri: string): Promise<GroupCardView | null>
+    /** Apply to join a group from its public URI; `payment` is the paid-join proof for join policy "paid". */
+    apply(uri: string, note?: string, payment?: JoinPayment): Promise<{ gid: string }>
     /** Pending join applications (owner only). */
     applications(gid: string): Promise<readonly GroupApplication[]>
     /** Approve one application: the applicant joins the roster (owner). */

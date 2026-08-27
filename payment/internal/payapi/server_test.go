@@ -1,8 +1,13 @@
 package payapi
 
 import (
+	"encoding/json"
 	"math/big"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"github.com/startupworld-ai/soulnet/payment/internal/store"
 )
 
 func TestDecimalRoundTrip(t *testing.T) {
@@ -83,5 +88,74 @@ func TestIsHexAddress(t *testing.T) {
 		if isHexAddress(a) {
 			t.Fatalf("%q should be invalid", a)
 		}
+	}
+}
+
+func TestWalletBindAddress(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(dir)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	svc, err := New(st, &store.Config{Mode: "local-cdp", Network: "base-sepolia"}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	req := httptest.NewRequest("POST", "/v2/pay/wallet.bind", strings.NewReader(`{"address":"0xD5D21E129B422491cfF103bA875c60dabec02899"}`))
+	w := httptest.NewRecorder()
+	svc.walletBind(w, req)
+	if w.Code != 200 {
+		t.Fatalf("status %d: %s", w.Code, w.Body.String())
+	}
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("json: %v", err)
+	}
+	if out["ok"] != true || out["bound"] != "address" {
+		t.Fatalf("unexpected: %v", out)
+	}
+	// wallet persisted under the caller fingerprint
+	wal, err := st.GetWallet(fpOf(req))
+	if err != nil {
+		t.Fatalf("GetWallet: %v", err)
+	}
+	if wal == nil || wal.Address != "0xd5d21e129b422491cff103ba875c60dabec02899" {
+		t.Fatalf("wallet not bound: %+v", wal)
+	}
+	// second bind is refused (already bound)
+	w2 := httptest.NewRecorder()
+	svc.walletBind(w2, httptest.NewRequest("POST", "/v2/pay/wallet.bind", strings.NewReader(`{"address":"0x1111111111111111111111111111111111111111"}`)))
+	if w2.Code != 200 || !strings.Contains(w2.Body.String(), "already bound") {
+		t.Fatalf("second bind should refuse: %d %s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestWalletBindValidation(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(dir)
+	if err != nil {
+		t.Fatalf("store: %v", err)
+	}
+	svc, err := New(st, &store.Config{Mode: "local-cdp", Network: "base-sepolia"}, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// neither address nor account_name
+	w := httptest.NewRecorder()
+	svc.walletBind(w, httptest.NewRequest("POST", "/v2/pay/wallet.bind", strings.NewReader(`{}`)))
+	if w.Code != ErrBadRequest && !strings.Contains(w.Body.String(), "provide exactly one") {
+		t.Fatalf("expected bad request: %d %s", w.Code, w.Body.String())
+	}
+	// invalid address
+	w2 := httptest.NewRecorder()
+	svc.walletBind(w2, httptest.NewRequest("POST", "/v2/pay/wallet.bind", strings.NewReader(`{"address":"not-an-address"}`)))
+	if !strings.Contains(w2.Body.String(), "provide exactly one") {
+		t.Fatalf("invalid address should be refused: %s", w2.Body.String())
+	}
+	// CDP account_name without CDP configured
+	w3 := httptest.NewRecorder()
+	svc.walletBind(w3, httptest.NewRequest("POST", "/v2/pay/wallet.bind", strings.NewReader(`{"account_name":"fp-abc"}`)))
+	if !strings.Contains(w3.Body.String(), "CDP not configured") {
+		t.Fatalf("expected CDP not configured: %s", w3.Body.String())
 	}
 }

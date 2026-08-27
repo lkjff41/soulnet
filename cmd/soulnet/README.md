@@ -73,8 +73,8 @@ The `initialize` result carries the `methods` / `notifications` lists for capabi
 | `group.setProfile` | `{gid, profile}` | `{ok}` | Owner only: republish the roster (version+1, re-signed) with the new governance profile; members converge on the fanned `group_update` |
 | `group.pin` | `{gid, body}` | `{pin}` | Owner/admins: pin an announcement on the group home (`pin = {id, from, ts, body}`). Fans a `group_pin`; pins live beside the chat stream, never in it; every change raises `group.updated` |
 | `group.unpin` | `{gid, id}` | `{ok}` | Owner/admins: remove one pin by its id |
-| `group.apply` | `{uri, note?}` | `{ok, gid}` | Apply to join via a `soulmirror://group?...` handle: fetch the group's public card from its relay, send the owner a pairwise `group_join`. The owner's policy decides: `open` → added mechanically, `apply` → pended for approval, `invite` → dropped |
-| `group.applications` | `{gid}` | `{applications[]}` | Pending join applications, `{fp, name, note?, ts}`. They live on the owner's node only (empty elsewhere) |
+| `group.apply` | `{uri, note?, payment?}` | `{ok, gid}` | Apply to join via a `soulmirror://group?...` handle: fetch the group's public card from its relay, send the owner a pairwise `group_join`. The owner's policy decides: `open` → added mechanically, `apply`/`paid` → pended for approval (with the optional `payment` proof `{tx_hash, amount, to, note?}` carried through), `invite` → dropped |
+| `group.applications` | `{gid}` | `{applications[]}` | Pending join applications, `{fp, name, note?, ts, payment?}`. They live on the owner's node only (empty elsewhere) |
 | `group.approve` | `{gid, fp}` | `{ok}` | Owner only: approve one application — roster republish + invite + keys, application removed. No such application → `-32004` |
 | `group.applicationReject` | `{gid, fp}` | `{ok}` | Owner only: discard one application (no notice is sent) |
 | `group.invite` | `{gid, fp}` | `{ok}` | Add a **friend** of mine to the group. Owner: republish directly. Admin: forward a `group_admin` invite to the owner and pass the friend the invite once the roster includes them. Anyone else → `-32602` |

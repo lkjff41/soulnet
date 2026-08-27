@@ -287,6 +287,7 @@ func (s *Server) methods() map[string]handler {
 		"group.pin":               s.groupPin,
 		"group.unpin":             s.groupUnpin,
 		"group.apply":             s.groupApply,
+		"group.lookup":            s.groupLookup,
 		"group.applications":      s.groupApplications,
 		"group.approve":           s.groupApprove,
 		"group.applicationReject": s.groupApplicationReject,

@@ -238,6 +238,9 @@ type GroupApplication struct {
 	Card *Card     `json:"card"`
 	Note string    `json:"note,omitempty"`
 	TS   time.Time `json:"ts"`
+	// Payment is the paid-join proof (join policy "paid"), passed through from
+	// the group_join message; nil for invite/apply joins.
+	Payment *JoinPayment `json:"payment,omitempty"`
 }
 
 func (s *GroupStore) appsDir(gid string) string { return filepath.Join(s.dir(gid), "applications") }

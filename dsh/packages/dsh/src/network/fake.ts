@@ -365,6 +365,7 @@ export function createFakeNetworkClient(options: FakeOptions = {}): NetworkClien
         emit({ kind: 'group_update', gid })
         return Promise.resolve()
       },
+      lookup: () => Promise.resolve(null),
       apply: (uri, note) => {
         void note
         const me = requireIdentity()

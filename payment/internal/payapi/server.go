@@ -70,6 +70,7 @@ func (s *Service) PinIdentityFP(fp string) { s.pinFP = fp }
 func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v2/pay/wallet.create", s.requireAuth(s.walletCreate))
+	mux.HandleFunc("POST /v2/pay/wallet.bind", s.requireAuth(s.walletBind))
 	mux.HandleFunc("GET /v2/pay/wallet", s.requireAuth(s.walletBalance))
 	mux.HandleFunc("POST /v2/pay/transfer", s.requireAuth(s.transfer))
 	mux.HandleFunc("POST /v2/pay/join.verify", s.requireAuth(s.joinVerify))
@@ -215,6 +216,92 @@ func (s *Service) walletBalance(w http.ResponseWriter, r *http.Request) {
 		"balance_usdc": atomicToDecimal(usdc, 6),
 		"balance_eth":  atomicToDecimal(eth, 18),
 	})
+}
+
+// walletBind binds an EXISTING wallet to the caller's fingerprint instead of
+// creating a new CDP account. Two kinds are supported:
+//
+//   - address (manual-address): the caller's own external 0x address (MetaMask
+//     etc.) becomes their receiving address; balance reads use the public RPC
+//     and outgoing transfers are not available from this gateway (signing keys
+//     live outside). The gateway mode is set to "manual-address".
+//   - account_name (CDP): find an EXISTING CDP account in the user's project
+//     by name and bind it (a wallet previously created under another
+//     fingerprint, or created in the CDP dashboard). Requires CDP.
+func (s *Service) walletBind(w http.ResponseWriter, r *http.Request) {
+	fp := fpOf(r)
+	existing, err := s.store.GetWallet(fp)
+	if err != nil {
+		writeError(w, -32603, err.Error())
+		return
+	}
+	if existing != nil {
+		writeJSON(w, map[string]any{"ok": false, "error": "already bound", "address": existing.Address})
+		return
+	}
+	var req struct {
+		Address     string `json:"address"`
+		AccountName string `json:"account_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, ErrBadRequest, "bad json: "+err.Error())
+		return
+	}
+	addr := strings.ToLower(strings.TrimSpace(req.Address))
+	name := strings.TrimSpace(req.AccountName)
+	switch {
+	case isHexAddress(addr) && name == "":
+		// External address binding (manual-address mode): the user already owns
+		// this address; this gateway only reads its balance / accepts payments.
+		if err := s.store.SaveWallet(&store.Wallet{
+			Fingerprint: fp, Address: addr, AccountName: "manual",
+			Network: s.network, CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		}); err != nil {
+			writeError(w, -32603, err.Error())
+			return
+		}
+		if c, _ := s.store.GetConfig(); c != nil {
+			c.Mode = "manual-address"
+			c.ManualAddress = addr
+			if err := s.store.SaveConfig(c); err != nil {
+				writeError(w, -32603, err.Error())
+				return
+			}
+			s.cfg.c = c
+		}
+		writeJSON(w, map[string]any{
+			"ok": true, "bound": "address", "address": addr, "network": s.network,
+		})
+		return
+	case addr == "" && name != "":
+		if s.cdp == nil {
+			writeError(w, ErrCDPNotConfigured, "CDP not configured: 设置 → 灵镜网络 → CDP")
+			return
+		}
+		acc, err := s.cdp.GetAccountByName(name)
+		if err != nil {
+			if isNotFound(err) {
+				writeError(w, ErrBadRequest, "account not found: "+name)
+				return
+			}
+			writeError(w, -32603, "cdp lookup: "+err.Error())
+			return
+		}
+		if err := s.store.SaveWallet(&store.Wallet{
+			Fingerprint: fp, Address: acc.Address, AccountName: acc.Name,
+			Network: s.network, CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		}); err != nil {
+			writeError(w, -32603, err.Error())
+			return
+		}
+		writeJSON(w, map[string]any{
+			"ok": true, "bound": "cdp", "address": acc.Address, "account_name": acc.Name, "network": s.network,
+		})
+		return
+	default:
+		writeError(w, ErrBadRequest, "provide exactly one of: address (0x) or account_name")
+		return
+	}
 }
 
 // transfer sends USDC from the caller's CDP wallet to an on-chain address.

@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, IconRightUpOutline14, IconSendOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import { networkStore, type ApiChatItem } from './api.ts'
+import { api, networkStore, type ApiChatItem } from './api.ts'
 import { DraftCard } from './DraftCard.tsx'
 import type { Translate } from './translate.ts'
 import { formatClock, formatDay } from './page-state.ts'
@@ -45,6 +45,10 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   const drafts = net.inbox.drafts
   const running = alter.status === 'running' || alter.chat.running || alter.instructing
   const [draft, setDraft] = useState('')
+  const [wallet, setWallet] = useState<{ address?: string; network?: string; balance_usdc?: string; balance_eth?: string } | null | undefined>(undefined)
+  useEffect(() => {
+    void api.payWallet().then((r) => { setWallet(r.wallet ?? null) }).catch(() => { setWallet(null) })
+  }, [])
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
@@ -202,6 +206,15 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
             : null}
         </div>
       </header>
+      {wallet !== undefined && wallet !== null
+        ? (
+          <div className="sm-alter-wallet" data-soulmirror-alter-wallet style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', fontSize: '0.8em', opacity: 0.9, borderBottom: '1px solid rgba(127,127,127,.18)' }}>
+            <span style={{ opacity: 0.7 }}>{t('alter.wallet')}</span>
+            <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wallet.address} data-soulmirror-alter-wallet-address>{wallet.address}</span>
+            <span style={{ opacity: 0.85 }}>{wallet.balance_usdc !== undefined ? `USDC ${wallet.balance_usdc}` : ''}</span>
+          </div>
+        )
+        : null}
       {drafts.length > 0 && firstDraft !== undefined
         ? (
           <div className="sm-pendbar" data-soulmirror-alter-pendbar={drafts.length}>

@@ -19,6 +19,7 @@ import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { mountApi } from './api/index.ts'
 import { createFakeNetworkClient } from './network/fake.ts'
 import { createPaygateClient, type PaygateClient } from './network/paygate.ts'
+import { paidJoinConfig } from './group-contract.ts'
 import { createSoulnetNetworkClient, defaultSoulnetHome } from './network/soulnet.ts'
 import type { NetworkClient } from './network/types.ts'
 import { resolveSettings, SETTINGS_NAMESPACE, SOULMIRROR_SETTINGS_SCHEMA, type SoulmirrorSettings } from './settings.ts'
@@ -162,12 +163,48 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
   ctx.provide('soulmirrorPay', paygate)
 
+  // Paid group join: when an application carries a payment proof for a group
+  // whose join policy is "paid", verify the transfer on-chain through the local
+  // gateway (recipient == join_addr, amount >= join_price) and auto-approve.
+  if (paygate !== undefined) {
+    client.subscribe((event) => {
+      if (event.kind !== 'group_application') return
+      const req = event.request
+      if (req.payment === undefined) return
+      void (async () => {
+        try {
+          const group = await client.groups.info(event.gid)
+          const profile = group.profile
+          const paidConfig = paidJoinConfig(profile)
+          if (paidConfig === undefined) return
+          // Verify against the PUBLISHED price/address — never the applicant's
+          // self-reported values, so underpaying (or paying a different address)
+          // fails even though the applicant claims a matching proof.
+          const result = await paygate.call('POST', '/v2/pay/join.verify', {
+            tx_hash: req.payment!.tx_hash,
+            to: paidConfig.addr,
+            amount: paidConfig.price,
+          }) as { valid?: boolean; reason?: string }
+          if (result.valid === true) {
+            await client.groups.approve(event.gid, req.fp)
+            log('info', `paid join verified & auto-approved: ${req.fp} → ${event.gid} (${req.payment!.amount} USDC)`)
+          } else {
+            log('warn', `paid join NOT verified (${result.reason ?? 'invalid'}): ${req.fp} → ${event.gid}`)
+          }
+        } catch (error: unknown) {
+          log('warn', `paid join verification failed: ${String(error)}`)
+        }
+      })()
+    })
+  }
+
   mountApi(ctx, {
     client,
     home,
     settingsNamespace: SETTINGS_NAMESPACE,
     sessions: () => ctx.get('soulmirrorSessions'),
     settings: () => live,
+    paygate: () => paygate,
     log,
   })
   log('info', `backend=${client.backend} home=${home} relay=${effective.relay}`)

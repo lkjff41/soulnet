@@ -49,6 +49,7 @@ import { sendAndArchive } from '../network/send.ts'
 import { NetworkError, NetworkErrorCode, type ConversationEntry, type Friend } from '../network/types.ts'
 import { agentRoundsExceeded, countAutoInWindow, DEFAULT_AUTO_REPLY_PER_HOUR, DEFAULT_REPLY_TIER, effectiveAgentTier, groupSendGate, mentionsAgent, mentionsMe, sendGate, UNKNOWN_TRIGGER, type GroupCapEntry, type SendDecision, type TurnTrigger } from '../policy.ts'
 import type { PaygateClient } from '../network/paygate.ts'
+import { paidJoinFromRules } from '../group-contract.ts'
 import type { SoulmirrorSettings } from '../settings.ts'
 import { defineTool } from './define.ts'
 import type {} from '../index.ts'
@@ -395,9 +396,11 @@ export function apply(ctx: Context): void {
 
   const wallet = defineTool({
     name: 'soulmirror_wallet',
-    description: 'Manage the user\'s USDC wallet (Coinbase CDP, Base network) through the local payment gateway. op "get_or_create" creates or returns the wallet address (free, moves no money; the address is public and anyone can send USDC to it), op "balance" returns the USDC/ETH balance, op "status" returns the gateway/wallet state. When the gateway is not configured with CDP, the result explains how to enable it. This tool NEVER sends money.',
+    description: 'Manage the user\'s USDC wallet (Coinbase CDP, Base network) through the local payment gateway. op "get_or_create" creates or returns the wallet address (free, moves no money; the address is public and anyone can send USDC to it), op "balance" returns the USDC/ETH balance, op "status" returns the gateway/wallet state, op "bind" binds an EXISTING wallet instead of creating a new one — either the user\'s own external 0x address (address param, manual-address mode: can receive USDC, cannot send from this gateway) or an existing CDP account by name (account_name param). When the gateway is not configured with CDP, the result explains how to enable it. This tool NEVER sends money.',
     parameters: {
-      op: { type: 'string', enum: ['get_or_create', 'balance', 'status'], description: 'What to do: get_or_create = create or return the wallet address; balance = current USDC/ETH balance; status = gateway + wallet state.' },
+      op: { type: 'string', enum: ['get_or_create', 'balance', 'status', 'bind'], description: 'What to do: get_or_create = create or return the wallet address; balance = current USDC/ETH balance; status = gateway + wallet state; bind = bind an existing wallet (address or account_name).' },
+      address: { type: 'string', description: 'External 0x address to bind (op=bind, manual-address mode; can receive USDC, cannot send from this gateway).', optional: true },
+      account_name: { type: 'string', description: 'Existing CDP account name to bind (op=bind; requires CDP configured).', optional: true },
     },
     output: { type: 'object' },
     async execute(args) {
@@ -438,6 +441,40 @@ export function apply(ctx: Context): void {
           case 'status': {
             const config = await pay.call('GET', '/v2/pay/config')
             return { gateway: pay.status(), config }
+          }
+          case 'bind': {
+            const address = typeof args.address === 'string' ? args.address.trim() : ''
+            const accountName = typeof args.account_name === 'string' ? args.account_name.trim() : ''
+            if (address === '' && accountName === '') {
+              throw new NetworkError('bind 需要提供 address（外部 0x 地址）或 account_name（已有 CDP 账户名）', -32602)
+            }
+            if (address !== '' && accountName !== '') {
+              throw new NetworkError('bind 只需提供 address 或 account_name 之一', -32602)
+            }
+            const body = address !== '' ? { address } : { account_name: accountName }
+            const result = await pay.call('POST', '/v2/pay/wallet.bind', body)
+            // Publish the bound address so other agents can find it (same
+            // old-relay fallback as get_or_create).
+            if (typeof result === 'object' && result !== null && typeof (result as { address?: string }).address === 'string' && (result as { ok?: boolean }).ok === true) {
+              const addr = (result as { address: string }).address
+              try {
+                const profile = (await net.profile.get()) ?? {}
+                if (profile.usdc_address !== addr) {
+                  await net.profile.save({ ...profile, usdc_address: addr })
+                  try {
+                    await net.directory.publish()
+                  } catch {
+                    const stripped = { ...profile }
+                    delete stripped.usdc_address
+                    await net.profile.save(stripped)
+                    await net.directory.publish()
+                  }
+                }
+              } catch (error: unknown) {
+                ctx.logger.warn(`soulmirror-tools: wallet address publish failed: ${String(error)}`)
+              }
+            }
+            return result
           }
         }
       } catch (error: unknown) {
@@ -509,6 +546,86 @@ export function apply(ctx: Context): void {
     },
   })
 
-  for (const tool of [friends, card, addFriend, sendMessage, sendGroup, readConversation, wallet, transfer]) ctx.tools.register(tool)
-  ctx.logger.info('soulmirror-tools: registered soulmirror_friends, soulmirror_card, soulmirror_add_friend, soulmirror_send_message, soulmirror_send_group_message, soulmirror_read_conversation, soulmirror_wallet, soulmirror_transfer')
+  const group = defineTool({
+    name: 'soulmirror_group',
+    description: 'Paid group-join operations (USDC): op "set_price" lets the OWNER of a group turn on paid joining (price + receiving address published on the group card, strangers must pay before approval); op "paid_join" pays the group\'s published price to its join address through the local payment gateway and applies with the payment proof; op "join_status" reports a group\'s join policy and pricing. The owner\'s node verifies the transfer on-chain before approving.',
+    parameters: {
+      op: { type: 'string', enum: ['set_price', 'paid_join', 'join_status'], description: 'What to do.' },
+      gid: { type: 'string', description: 'Group id (set_price, join_status for groups I am in).', optional: true },
+      uri: { type: 'string', description: 'Group handle soulmirror://group?gid=…&relay=… (paid_join, join_status for strangers).', optional: true },
+      price: { type: 'string', description: 'USDC price, e.g. "1.00" (set_price).', optional: true },
+      address: { type: 'string', description: 'Receiving 0x address; default = this wallet (set_price).', optional: true },
+      note: { type: 'string', description: 'Payment note shown to applicants (set_price).', optional: true },
+      memo: { type: 'string', description: 'Optional memo on the paid_join transfer.', optional: true },
+    },
+    output: { type: 'object' },
+    async execute(args) {
+      const pay = loose.get('soulmirrorPay') as PaygateClient | undefined
+      if (pay === undefined) throw new NetworkError('payment gateway unavailable (the fake backend does not run one)', -32603)
+      switch (args.op) {
+        case 'set_price': {
+          if (args.gid === undefined || args.gid === '') throw new NetworkError('gid is required for set_price', -32602)
+          if (args.price === undefined || args.price === '') throw new NetworkError('price is required, e.g. "1.00"', -32602)
+          const existing = (await net.groups.info(args.gid)).profile
+          const current = existing ?? { speakHumans: true, speakAgents: true }
+          let joinAddr = args.address?.trim() ?? ''
+          if (joinAddr === '') {
+            const wallet = await pay.call('GET', '/v2/pay/wallet') as { address?: string }
+            joinAddr = wallet.address ?? ''
+          }
+          if (joinAddr === '') return { ok: false, message: '需要一个收款地址：先创建钱包，或用 address 参数指定。' }
+          // Native paid join (wire spec §14.7): join=paid + published
+          // join_price/join_addr. The relay must accept join=paid (the current
+          // public relay does; legacy relays require the rules-marker encoding).
+          await net.groups.setProfile(args.gid, {
+            ...current,
+            join: 'paid',
+            joinPrice: args.price,
+            joinAddr,
+          })
+          return { ok: true, gid: args.gid, join: 'paid', join_price: args.price, join_addr: joinAddr, message: '已开启付费进群：付 ' + args.price + ' USDC 到 ' + joinAddr + ' 后申请进群。' }
+        }
+        case 'paid_join': {
+          if (args.uri === undefined || args.uri === '') throw new NetworkError('uri is required for paid_join', -32602)
+          const card = await net.groups.lookup(args.uri)
+          if (card === null) throw new NetworkError('找不到该群（无法读取公开群名片）', -32004)
+          // Native paid (join=paid + join_price) or the rules-marker encoding.
+          const paid = card.join === 'paid'
+            ? { addr: card.joinAddr, price: card.joinPrice }
+            : paidJoinFromRules(card.rulesHead)
+          if (paid === undefined || paid.addr === undefined || paid.price === undefined) {
+            return { ok: false, reason: 'not-paid', message: '该群不是付费进群模式（join=' + (card.join || 'invite') + '）。' }
+          }
+          const price = paid.price ?? args.price
+          if (price === undefined || price === '') return { ok: false, message: '群没有公布价格，请让群主设置。' }
+          const toAddr = paid.addr
+          const tx = await pay.call('POST', '/v2/pay/transfer', {
+            to_address: toAddr,
+            amount_usdc: price,
+            ...(args.memo === undefined ? {} : { memo: args.memo }),
+          }) as { tx_hash?: string; amount?: string }
+          if (tx.tx_hash === undefined) return { ok: false, message: '付款未成功：' + JSON.stringify(tx) }
+          await net.groups.apply(args.uri, '已付 ' + (tx.amount ?? price) + ' USDC 进群', { tx_hash: tx.tx_hash, amount: tx.amount ?? price, to: toAddr })
+          return { ok: true, paid: tx.amount ?? price, tx_hash: tx.tx_hash, to: toAddr, message: '已付款 ' + (tx.amount ?? price) + ' USDC 并提交进群申请，等群主确认。' }
+        }
+        case 'join_status': {
+          if (args.uri !== undefined && args.uri !== '') {
+            const card = await net.groups.lookup(args.uri)
+            if (card === null) return { ok: false, message: '找不到该群。' }
+            return { ok: true, gid: card.gid, name: card.name, join: card.join, join_price: card.joinPrice, join_addr: card.joinAddr, members: card.members }
+          }
+          if (args.gid === undefined || args.gid === '') throw new NetworkError('uri or gid is required for join_status', -32602)
+          const g = await net.groups.info(args.gid)
+          const p = g.profile
+          const paid = p?.join === 'paid'
+            ? { price: p.joinPrice, addr: p.joinAddr }
+            : paidJoinFromRules(p?.rules)
+          return { ok: true, gid: args.gid, name: g.name, join: paid === undefined ? (p?.join ?? 'invite') : 'paid', join_price: paid?.price, join_addr: paid?.addr, members: g.members }
+        }
+      }
+    },
+  })
+
+  for (const tool of [friends, card, addFriend, sendMessage, sendGroup, readConversation, wallet, transfer, group]) ctx.tools.register(tool)
+  ctx.logger.info('soulmirror-tools: registered soulmirror_friends, soulmirror_card, soulmirror_add_friend, soulmirror_send_message, soulmirror_send_group_message, soulmirror_read_conversation, soulmirror_wallet, soulmirror_transfer, soulmirror_group')
 }

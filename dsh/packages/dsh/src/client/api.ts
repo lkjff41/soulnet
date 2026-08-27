@@ -73,7 +73,7 @@ export interface ApiGroupProfile {
   speakHumans: boolean
   speakAgents: boolean
   speakWho?: 'all' | 'owner' | 'admins'
-  join?: 'invite' | 'apply' | 'open'
+  join?: 'invite' | 'apply' | 'open' | 'paid'
   agentWake?: 'mention' | 'always' | 'never'
   agentTier?: 'notify' | 'draft' | 'auto'
   autoPerHour?: number
@@ -82,6 +82,12 @@ export interface ApiGroupProfile {
   public?: boolean
   tags?: string[]
   rules?: string
+  /** Paid-join price in USDC ("1.00"); used when join = "paid". */
+  joinPrice?: string
+  /** Paid-join receiving address (0x, Base). */
+  joinAddr?: string
+  /** Payment instruction shown to applicants. */
+  joinNote?: string
 }
 /** One pinned message on the group home. */
 export interface ApiGroupPin { id: string; from: string; ts: number; body: string }
@@ -197,6 +203,8 @@ async function call<T>(route: string, body?: Record<string, unknown>): Promise<T
 
 export const api = {
   state: () => call<ApiState>('state'),
+  /** Wallet status for the create-group UI (paid join needs a wallet). */
+  payWallet: () => call<{ cdp_configured?: boolean; wallet?: { address?: string; network?: string; balance_usdc?: string; balance_eth?: string } | null; error?: string }>('pay.wallet'),
   createIdentity: (name: string) => call<{ identity: ApiIdentity }>('identity.create', { name }),
   parseCard: (uri: string) => call<{ fp: string; name: string; uri: string }>('card.parse', { uri }),
   addFriend: (cardUri: string, note?: string) => call<{ friend: ApiFriend }>('friends.add', { card_uri: cardUri, ...(note === undefined ? {} : { note }) }),
@@ -247,7 +255,9 @@ export const api = {
   groupPin: (gid: string, body: string) => call<{ ok: true }>('group.pin', { gid, body }),
   groupUnpin: (gid: string, id: string) => call<{ ok: true }>('group.unpin', { gid, id }),
   /** Apply to join a group from its public URI (`soulmirror://group?gid=…&relay=…`). */
-  groupApply: (uri: string, note?: string) => call<{ ok: true; gid: string }>('group.apply', { uri, ...(note === undefined ? {} : { note }) }),
+  /** Fetch a group's public card (join policy, paid price/address). */
+  groupLookup: (uri: string) => call<{ card: { gid: string; name: string; join: string; members?: number; joinPrice?: string; joinAddr?: string; rulesHead?: string } | null }>('group.lookup', { uri }),
+  groupApply: (uri: string, note?: string, payment?: { tx_hash: string; amount: string; to: string }) => call<{ ok: true; gid: string }>('group.apply', { uri, ...(note === undefined ? {} : { note }), ...(payment === undefined ? {} : { payment }) }),
   groupApplications: (gid: string) => call<{ applications: ApiGroupApplication[] }>('group.applications', { gid }),
   groupApprove: (gid: string, fp: string) => call<{ ok: true }>('group.approve', { gid, fp }),
   groupApplicationReject: (gid: string, fp: string) => call<{ ok: true }>('group.applicationReject', { gid, fp }),

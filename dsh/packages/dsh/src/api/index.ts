@@ -28,7 +28,9 @@ import type { Fingerprint } from '../events.ts'
 import { ProtocolFile } from '../friend-settings.ts'
 import { GroupSettingsStore } from '../group-settings.ts'
 import { sendAndArchive } from '../network/send.ts'
-import { NetworkError, type ConversationEntry, type GroupProfile, type NetworkClient, type NetworkEvent } from '../network/types.ts'
+import { NetworkError, type ConversationEntry, type GroupProfile, type JoinPayment, type NetworkClient, type NetworkEvent } from '../network/types.ts'
+import type { PaygateClient } from '../network/paygate.ts'
+import { paidJoinConfig } from '../group-contract.ts'
 import { isReplyTier } from '../policy.ts'
 import type { AlterSessions, SessionsEvent } from '../sessions/index.ts'
 import type { SoulmirrorSettings } from '../settings.ts'
@@ -51,6 +53,8 @@ export interface ApiOptions {
   /** Live settings (the alter fields apply without restart). */
   readonly settings: () => SoulmirrorSettings
   readonly log: (level: 'info' | 'warn' | 'error', message: string) => void
+  /** Local payment gateway (USDC), when the backend runs one. */
+  readonly paygate: () => PaygateClient | undefined
 }
 
 type Json = Record<string, unknown>
@@ -114,7 +118,7 @@ const fpList = (value: unknown): string[] => {
 }
 
 /** GET routes whose query string stands in for the JSON body (`?fp=…&since=…&limit=…`, `?fps=a,b`). */
-const QUERY_ROUTES = new Set(['state', 'conversation.get', 'presence', 'session.latest', 'session.history', 'protocol.get', 'drafts.list', 'group.get', 'group.conversation', 'group.applications', 'group.settings', 'agents.list', 'agent.history'])
+const QUERY_ROUTES = new Set(['state', 'conversation.get', 'presence', 'session.latest', 'session.history', 'protocol.get', 'drafts.list', 'group.get', 'group.conversation', 'group.applications', 'group.settings', 'agents.list', 'agent.history', 'pay.wallet'])
 
 /** The `profile` body field as a camelCase {@link GroupProfile}, when it is a plausible object. */
 function profileOf(value: unknown): GroupProfile | undefined {
@@ -233,6 +237,17 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
     switch (route) {
       case 'state':
         return { status: 200, body: await state() }
+      case 'pay.wallet': {
+        // Wallet status for the UI (create-group "paid join" option).
+        const pg = options.paygate()
+        if (pg === undefined) return { status: 200, body: { cdp_configured: false, wallet: null } }
+        try {
+          const wallet = await pg.call('GET', '/v2/pay/wallet') as { address?: string; network?: string; balance_usdc?: string; balance_eth?: string }
+          return { status: 200, body: { cdp_configured: true, wallet: { address: wallet.address, network: wallet.network, balance_usdc: wallet.balance_usdc, balance_eth: wallet.balance_eth } } }
+        } catch (error: unknown) {
+          return { status: 200, body: { cdp_configured: true, wallet: null, error: String(error) } }
+        }
+      }
       case 'identity.create': {
         const name = text(body['name'])
         if (name === undefined) return bad('name must not be empty')
@@ -524,11 +539,27 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
         await client.groups.unpin(gid, id)
         return { status: 200, body: { ok: true } }
       }
+      case 'group.lookup': {
+        const uri = text(body['uri'])
+        if (uri === undefined) return bad('uri must not be empty')
+        return { status: 200, body: { card: await client.groups.lookup(uri) } }
+      }
       case 'group.apply': {
         const uri = text(body['uri'])
         if (uri === undefined) return bad('uri must not be empty')
-        const { gid } = await client.groups.apply(uri, text(body['note']))
-        options.log('info', `applied to group ${gid} via URI`)
+        let payment: JoinPayment | undefined
+        const raw = body['payment'] as Record<string, unknown> | undefined
+        if (typeof raw === 'object' && raw !== null) {
+          const tx = text(raw['tx_hash'])
+          const amount = text(raw['amount'])
+          const to = text(raw['to'])
+          if (tx === undefined || amount === undefined || to === undefined) {
+            return bad('payment must carry tx_hash, amount and to')
+          }
+          payment = { tx_hash: tx, amount, to }
+        }
+        const { gid } = await client.groups.apply(uri, text(body['note']), payment)
+        options.log('info', `applied to group ${gid} via URI${payment === undefined ? '' : ' (with payment proof)'}`)
         return { status: 200, body: { ok: true, gid } }
       }
       case 'group.applications': {
@@ -540,6 +571,31 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
         const gid = text(body['gid'])
         const fp = text(body['fp'])
         if (gid === undefined || fp === undefined) return bad('gid and fp must not be empty')
+        // Paid groups: the applicant must have paid AND the payment must verify
+        // on-chain before the owner can approve — a plain approve without a
+        // valid proof is refused (the applicant pays at application time).
+        const group = await client.groups.info(gid)
+        const profile = group.profile
+        const paidConfig = paidJoinConfig(profile)
+        if (paidConfig !== undefined) {
+          const apps = await client.groups.applications(gid)
+          const app = apps.find(a => a.fp === fp)
+          const payment = app?.payment
+          if (payment === undefined) {
+            return { status: 400, body: { error: { code: -32602, message: '该群是付费进群：申请人还没有附上付款证明，不能批准。请申请人先付款（soulmirror_group paid_join）。' } } }
+          }
+          const pg = options.paygate()
+          if (pg === undefined) {
+            return { status: 400, body: { error: { code: -32603, message: '付费进群需要本地支付网关验证到账，当前网关不可用。' } } }
+          }
+          // Verify against the PUBLISHED price/address — never the applicant's
+          // self-reported values (underpaying or paying a different address
+          // fails even if the applicant's proof claims otherwise).
+          const verified = await pg.call('POST', '/v2/pay/join.verify', { tx_hash: payment.tx_hash, to: paidConfig.addr, amount: paidConfig.price }) as { valid?: boolean }
+          if (verified.valid !== true) {
+            return { status: 400, body: { error: { code: -32602, message: '付费进群：申请人的付款未通过链上验证（收款方/金额不符或交易无效），不能批准。' } } }
+          }
+        }
         await client.groups.approve(gid, fp as Fingerprint)
         return { status: 200, body: { ok: true } }
       }
