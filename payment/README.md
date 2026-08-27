@@ -1,78 +1,88 @@
-# payment/ — SoulMirror 支付网关（paygate）
+# payment/ — SoulMirror payment gateway (paygate)
 
-基于 Coinbase CDP v2 的本地 USDC 支付网关：一个随灵镜插件安装的**本地独立进程**，
-监听 `127.0.0.1:9001`（仅回环），为 A2A 支付提供钱包创建、USDC 转账、链上入账验证。
+A local USDC payment gateway built on Coinbase CDP v2: a **standalone local process**
+installed alongside the SoulMirror plugin, listening on `127.0.0.1:9001` (loopback only),
+providing wallet creation, USDC transfers and on-chain payment verification for A2A.
 
-架构与决策见 [`docs/cdp-a2a-payment-plan.md`](../docs/cdp-a2a-payment-plan.md)（§5 网关设计）。
+Architecture and decisions live in [`docs/cdp-a2a-payment-plan.md`](../docs/cdp-a2a-payment-plan.md) (§5 gateway design).
 
-## 为什么是本地进程
+## Why a local process
 
-- **每人本地网关、自配 CDP**：没有公共服务器、没有平台托管；CDP 密钥各配各的，只存在本机
-  keychain/环境变量，**代码仓库里永远没有真实密钥**（只有 `.env.example` 占位符）。
-- **互通靠链不靠 CDP**：结算在 Base 链的 USDC 上，任何地址之间可直接转账。
-- 三档能力：① 无 CDP（收钱/手动付款/验证）；② 本地 CDP（分身自动付款全功能）；
-  ③ 未来公共网关（同一套代码，改 `gateway_url` 配置）。
+- **Everyone runs their own gateway with their own CDP**: no public server, no platform
+  hosting; CDP secrets are configured per user and live only in the local keychain /
+  environment — **real secrets never enter the repository** (only the `.env.example`
+  placeholders do).
+- **Interop happens on-chain, not through CDP**: settlement is USDC on Base; any address
+  can transfer to any address directly.
+- Three capability tiers: ① no CDP (receive / pay manually / verify); ② local CDP (the
+  alter pays automatically, full functionality); ③ a future public gateway (same code,
+  different `gateway_url` config).
 
-## 构建
+## Build
 
-仓库 go.mod 要求 Go ≥ 1.25（本机 1.19 无法编译；可用仓库根的 `_tools/go`）。
+The repo go.mod requires Go ≥ 1.25 (a system Go 1.19 cannot compile; use `_tools/go` at
+the repo root).
 
 ```sh
 go build -o bin/paygate ./payment/cmd/paygate
 ```
 
-## 运行（开发，无密钥也可启动）
+## Run (development; starts fine without secrets)
 
 ```sh
-# 最小启动：只开 manual-address 档（无 CDP），join.verify / balance 可用
+# Minimal start: manual-address tier only (no CDP), join.verify / balance available
 PAYGATE_HOME=$HOME/.soulmirror/a2a/pay ./bin/paygate
 ```
 
-启用 CDP 全功能（环境变量，或在设置页录入）：
+Enable the full CDP tier (environment variables, or enter them in the settings page):
 
 ```sh
 export CDP_API_KEY_ID=...
-export CDP_API_KEY_SECRET=...     # base64 Ed25519(64B) 或 PEM EC P-256
+export CDP_API_KEY_SECRET=...     # base64 Ed25519 (64B) or PEM EC P-256
 export CDP_WALLET_SECRET=...      # base64 DER EC P-256 PKCS8
-export CDP_NETWORK=base-sepolia   # 或 base
+export CDP_NETWORK=base-sepolia   # or base
 ./bin/paygate
 ```
 
-## 接口
+## API
 
-全部请求须带 A2A 请求签名（`X-A2A-Pub` / `X-A2A-Timestamp` / `X-A2A-Signature`，
-与 relay `VerifyRequest` 同格式，复用 `a2a.SignReq`）。
+Every request must carry the A2A request signature (`X-A2A-Pub` / `X-A2A-Timestamp` /
+`X-A2A-Signature`, same format as the relay's `VerifyRequest`, using `a2a.SignReq`).
 
-| 端点 | 说明 | 需要 CDP |
+| Endpoint | Description | Needs CDP |
 |---|---|---|
-| `POST /v2/pay/wallet.create` | get-or-create 分身钱包（CDP EVM account，按指纹命名） | ✅ |
-| `GET /v2/pay/wallet` | USDC/ETH 余额（CDP 或公开 RPC） | 收款地址即可 |
-| `POST /v2/pay/transfer` | 分身转账 USDC（构造 EIP-1559 交易 → CDP 代签代发） | ✅ |
-| `POST /v2/pay/join.verify` | 付费进群入账验证（公开 Base RPC 解析 Transfer 日志） | ❌ |
-| `POST/GET /v2/pay/config` | 三档模式配置（密钥不经此接口） | — |
-| `GET /v2/pay/health` | 健康检查 | — |
+| `POST /v2/pay/wallet.create` | get-or-create the alter's wallet (CDP EVM account, named by fingerprint) | ✅ |
+| `GET /v2/pay/wallet` | USDC/ETH balances (CDP or public RPC) | receiving address only |
+| `POST /v2/pay/transfer` | send USDC from the alter's wallet (build EIP-1559 tx → CDP signs and broadcasts) | ✅ |
+| `POST /v2/pay/join.verify` | verify a paid group-join transfer on-chain (public Base RPC parses Transfer logs); enforces tx sender == the applicant's declared payer and validates the wallet-secret receipt | ❌ |
+| `POST /v2/pay/join.receipt` | mint a wallet-secret receipt (ES256 signature over {fp, tx_hash, payer} with the wallet key) proving the applicant controls the paying wallet — replay protection for paid joins | ✅ |
+| `POST/GET /v2/pay/config` | tiered mode configuration (secrets never pass through here) | — |
+| `GET /v2/pay/health` | health check | — |
 
-## 测试
+## Tests
 
 ```sh
-# 单元测试（RLP 向量 / JWT 结构 / 链上日志解析 / 金额换算）——离线可跑
+# Unit tests (RLP vectors / JWT structure / keccak256 vectors / on-chain log parsing /
+# amount conversion / receipt verification) — run offline
 go test ./payment/...
 
-# 端到端（真实 Base Sepolia RPC + 真实转账样本）
+# End-to-end (real Base Sepolia RPC + real transfer sample)
 PAYGATE_LIVE=1 go test ./payment/internal/payapi -run TestLiveJoinVerify -v
 ```
 
-## 目录
+## Layout
 
 ```
 payment/
-├── cmd/paygate/          入口（配置加载、HTTP 服务、优雅退出）
-├── internal/cdp/         CDP v2 REST 客户端：平台 JWT / X-Wallet-Auth JWT、
-│                         create account、token-balances、send/transaction、
-│                         EIP-1559 RLP（USDC ERC-20 transfer）
-├── internal/rpcclient/   公开 Base RPC：交易收据、Transfer 日志解析、余额、gas
-├── internal/payapi/      /v2/pay/* HTTP 层 + A2A 验签中间件
+├── cmd/paygate/          entrypoint (config loading, HTTP server, graceful shutdown)
+├── internal/cdp/         CDP v2 REST client: platform JWT / X-Wallet-Auth JWT,
+│                         create account, token-balances, send/transaction,
+│                         EIP-1559 RLP (USDC ERC-20 transfer), keccak256/address
+│                         derivation, wallet-secret signing (receipts)
+├── internal/rpcclient/   public Base RPC: tx receipts (incl. from), Transfer log
+│                         parsing, balances, gas
+├── internal/payapi/      /v2/pay/* HTTP layer + A2A signature middleware + receipt verify
 ├── internal/store/       wallets.json / transfers.jsonl / config.json
-├── internal/config/      环境变量加载
-└── .env.example          密钥占位符（永远不填真实值）
+├── internal/config/      environment loading
+└── .env.example          secret placeholders (never fill in real values)
 ```
