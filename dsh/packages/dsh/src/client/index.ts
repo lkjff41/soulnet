@@ -34,8 +34,11 @@ import { a2aRelayDefinition } from './a2a-node.ts'
 import { A2ANode } from './A2ANode.tsx'
 import { installBranding } from './Branding.tsx'
 import { api } from './api.ts'
-// Value import of the SlotMap merge module: keeps the `group.room` declaration in the bundle.
+// Value import of the SlotMap merge modules: keeps the `group.room` and
+// `alter.card` declarations in the bundle.
 import type {} from './group-room.ts'
+import type {} from './alter-card.ts'
+import { AlterSettingsCard } from './AlterSettingsCard.tsx'
 import { InboxOverlay, type InboxOverlayInjected } from './InboxOverlay.tsx'
 import { en, NS, zh } from './locales.ts'
 import { ChatRoom } from './rooms/ChatRoom.tsx'
@@ -46,6 +49,8 @@ import { pageStore } from './page-store.ts'
 import { SidebarEntry } from './SidebarEntry.tsx'
 import { SidebarNavEntry } from './SidebarNavEntry.tsx'
 import { SoulmirrorPage, type SoulmirrorPageInjected } from './SoulmirrorPage.tsx'
+import { UpdateAction } from './UpdateAction.tsx'
+import { upgradeStore } from './upgrade-store.ts'
 import { ensureStyles, removeStyles } from './styles.ts'
 
 export type { A2AChatData } from './a2a-node.ts'
@@ -100,6 +105,14 @@ export function apply(ctx: ClientContext): void {
     order: 0,
     locale: NS,
   }, SidebarEntry))
+  //     A one-click upgrade button appears in the same foot stack whenever a
+  //     newer release is known (owner-requested: a real button, not a dot).
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'soulmirror-update',
+    order: 1,
+    locale: NS,
+  }, UpdateAction))
   //     … and, when the SoulMirror sidebar (soulnet-dsh-sidebar) is installed,
   //     the same entry as the first primary-nav row under New Session; the
   //     foot entry then hides itself (nav-seat.ts). This inject callback only
@@ -129,10 +142,10 @@ export function apply(ctx: ClientContext): void {
     id: 'soulmirror-page',
     order: 40,
     locale: NS,
-    // The page declares the `group.room` seat (src/client/group-room.ts): rooms
-    // are the pluggable applications rendering a group; the GroupPane dispatches
-    // on the group profile's `room` key.
-    children: { 'group.room': { kind: 'keyed', scope: 'root' } },
+    // The page declares the `group.room` seat (rooms: the pluggable apps
+    // rendering a group) AND the `alter.card` seat (cards: the pluggable
+    // modules on the alter's home tab).
+    children: { 'group.room': { kind: 'keyed', scope: 'root' }, 'alter.card': { kind: 'list', scope: 'root' } },
     inject: pageInjected,
   }, SoulmirrorPage))
 
@@ -144,6 +157,16 @@ export function apply(ctx: ClientContext): void {
     key: 'chat',
     locale: NS,
   }, ChatRoom))
+
+  // 2c-ter. The built-in alter cards: the alter's own settings (and, later,
+  //         memory / skills / group-memory …) are pluggable cards on the alter's
+  //         home tab — a third-party dsh plugin adds another card by registering
+  //         into `alter.card` the same way.
+  ctx.slots.inject('alter.card', () => ctx.slots.register({
+    name: 'alter.card',
+    id: 'settings',
+    locale: NS,
+  }, AlterSettingsCard))
 
   // 2d. … and the new-mail toast (mail while the alter session is not on
   //     screen and the friend's thread is not open on the page).
@@ -158,19 +181,48 @@ export function apply(ctx: ClientContext): void {
     inject: overlayInjected,
   }, InboxOverlay))
 
-  // 3. Settings section backed by the host `soulmirror` namespace.
+  // 3. Settings section backed by the host `soulmirror` namespace. One SILENT
+  //    update check per page load; a newer published version puts a dot on
+  //    the section's nav label (the store answers before Settings is opened)
+  //    and the full badge inside the "Version & updates" card.
+  void upgradeStore.check({ silent: true })
+  // A page left open would otherwise never learn of a new release: re-check
+  // silently every 5 minutes (a lightweight metadata GET; the badge appears
+  // by itself).
+  ctx.effect(() => {
+    const timer = setInterval(() => { void upgradeStore.check({ silent: true, refresh: true }) }, 5 * 60_000)
+    return () => { clearInterval(timer) }
+  })
   const settingsInjected = (): SoulmirrorSettingsInjected => ({
     openSession,
     scope,
   })
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'soulmirror',
-    order: 80,
-    locale: NS,
-    label: () => t('settings.nav'),
-    inject: settingsInjected,
-  }, SoulmirrorSettingsSection))
+  ctx.slots.inject('settings.section', () => {
+    // The host evaluates a slot label ONCE at registration - the silent
+    // update check answers later, so a label function alone never grows its
+    // dot. Re-register the section whenever hasUpdate flips.
+    const make = (): (() => void) => ctx.slots.register({
+      name: 'settings.section',
+      id: 'soulmirror',
+      order: 80,
+      locale: NS,
+      label: () => upgradeStore.getSnapshot().hasUpdate ? `${t('settings.nav')} ●` : t('settings.nav'),
+      inject: settingsInjected,
+    }, SoulmirrorSettingsSection)
+    let hadUpdate = upgradeStore.getSnapshot().hasUpdate
+    let disposeSection = make()
+    const unsubscribe = upgradeStore.subscribe(() => {
+      const now = upgradeStore.getSnapshot().hasUpdate
+      if (now === hadUpdate) return
+      hadUpdate = now
+      disposeSection()
+      disposeSection = make()
+    })
+    return () => {
+      unsubscribe()
+      disposeSection()
+    }
+  })
 
   // 4. First-run onboarding: create the identity (after dsh's own welcome/model steps).
   ctx.slots.inject('settings.onboarding', () => ctx.slots.register({

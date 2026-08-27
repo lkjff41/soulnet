@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The rules the SoulMirror surfaces need that inline styles cannot express
  * (hover / focus chrome, the unread dot, the rail circle, bubbles, the typing
  * dots, the three-column page, the draft cards). The client bundle has no
@@ -12,9 +12,50 @@
 const STYLE_ID = 'soulmirror-styles'
 
 const CSS = `
+/* New-mail toast: our own pill (the host Toast surface stays light on the
+   dark theme). Fixed top-center, themed, auto-dismissing. */
+.sm-mail-toast {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 8px; max-width: min(420px, 80vw);
+  padding: 8px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 999px;
+  background: var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2)); color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-shadow-lv3, 0 8px 24px rgba(0,0,0,.35)); cursor: pointer;
+  font: inherit; font-size: 12px; animation: sm-page-in 140ms ease-out;
+}
+.sm-mail-toast:hover { border-color: var(--dsw-alias-brand-primary); }
+
+/* Icon-only update button at the right end of the SoulMirror foot row:
+   invisible until a release is known, small circled arrow, tooltip carries
+   the words. Sits beside the entry (the row is a flex line). */
+.sm-update-fab {
+  flex: none; align-self: center; width: 24px; height: 24px; margin: 4px 2px 0 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--dsw-alias-brand-primary); border-radius: 50%;
+  background: transparent; color: var(--dsw-alias-brand-primary); cursor: pointer; padding: 0;
+}
+.sm-update-fab:hover { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); }
+.sm-update-fab:disabled, .sm-update-fab.sm-busy { opacity: .8; cursor: default; }
+.sm-update-spin { animation: sm-update-spin 900ms linear infinite; }
+@keyframes sm-update-spin { to { transform: rotate(360deg); } }
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; min-width: 0;
+  padding: 2px 9px; border: 1px solid var(--dsw-alias-brand-primary); border-radius: 999px;
+  background: transparent; color: var(--dsw-alias-brand-primary);
+  font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.sm-update-chip:hover { background: var(--dsw-alias-brand-primary); color: var(--dsw-alias-label-primary-inverted); }
+.sm-update-chip:disabled { opacity: .75; cursor: default; }
+.sm-update-chip.sm-rail { padding: 2px 6px; }
+
+
+/* Native form controls follow the ACTIVE theme: the option list of a <select>
+   (and scrollbars, checkboxes...) is OS-rendered and ignores CSS tokens - it
+   only obeys color-scheme. dsh marks its dark theme on <body>. */
+body[data-ds-dark-theme] { color-scheme: dark; }
+.sm-page-root select option, .sm-page-root select optgroup { background: var(--dsw-specific-menu); color: var(--dsw-alias-label-primary); }
+
 .sm-footer {
-  flex: none; display: flex; align-items: center; gap: 8px;
-  width: calc(100% + 4px); height: 42px; margin: 4px -2px 0; padding: 0 10px 0 8px;
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px;
+  width: auto; height: 42px; margin: 4px -2px 0; padding: 0 10px 0 8px;
   box-sizing: border-box; border: none; border-radius: 12px; background: transparent;
   cursor: pointer; overflow: hidden; color: var(--dsw-alias-label-primary);
   font-family: inherit; font-size: 14px; line-height: 22px; position: relative;
@@ -119,6 +160,10 @@ const CSS = `
 .sm-list-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; }
 .sm-list-head-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; font-size: 15px; }
 .sm-list-search { flex: none; padding: 0 12px 8px; display: flex; gap: 6px; align-items: center; }
+.sm-col2-tabs { flex: none; display: flex; gap: 2px; padding: 0 8px 6px; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+.sm-col2-tab { flex: 1; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font-size: 13px; padding: 6px 4px; border-bottom: 2px solid transparent; cursor: pointer; }
+.sm-col2-tab:hover { color: var(--dsw-alias-label-primary); }
+.sm-col2-tab.sm-active { color: var(--dsw-alias-brand-primary); border-bottom-color: var(--dsw-alias-brand-primary); font-weight: 600; }
 .sm-list-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0 6px 6px; }
 .sm-list-foot { flex: none; padding: 8px 12px 12px; border-top: 1px solid var(--dsw-alias-border-l2); display: grid; gap: 6px; }
 .sm-req { display: flex; align-items: center; gap: 8px; margin: 2px 4px 4px; padding: 8px 10px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px; background: var(--dsw-alias-bg-base); }
@@ -130,6 +175,10 @@ const CSS = `
 .sm-chat-head-name { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sm-chat-head-sub { font-size: 12px; color: var(--dsw-alias-label-secondary); display: flex; align-items: center; gap: 6px; min-width: 0; }
 .sm-chat-head-actions { flex: none; display: flex; align-items: center; gap: 4px; }
+.sm-pane-tabs { flex: none; display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--dsw-alias-border-l2); box-sizing: border-box; }
+.sm-pane-tab { border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font-size: 13px; padding: 9px 4px; margin-right: 14px; border-bottom: 2px solid transparent; cursor: pointer; }
+.sm-pane-tab:hover { color: var(--dsw-alias-label-primary); }
+.sm-pane-tab.sm-active { color: var(--dsw-alias-brand-primary); border-bottom-color: var(--dsw-alias-brand-primary); font-weight: 600; }
 .sm-banner {
   flex: none; display: flex; align-items: center; gap: 10px; padding: 7px 16px; font-size: 12.5px;
   background: var(--dsw-alias-state-warn-tertiary, var(--dsw-alias-interactive-bg-hover)); color: var(--dsw-alias-state-warn-label, var(--dsw-alias-label-primary));
@@ -188,7 +237,7 @@ const CSS = `
 .sm-empty p { margin: 0; max-width: 420px; font-size: 12.5px; }
 .sm-card-pop {
   position: absolute; right: 16px; top: 60px; z-index: 2; width: min(420px, calc(100% - 32px)); padding: 10px 12px; box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 12px; background: var(--dsw-specific-menu); box-shadow: var(--dsw-shadow-lv3);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3);
   display: grid; gap: 6px; font-size: 12px;
 }
 .sm-card-uri { font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 11px; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); max-height: 96px; overflow: auto; }
@@ -273,6 +322,9 @@ const CSS = `
 .sm-home-card { border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base)); padding: 12px 14px; display: grid; gap: 8px; }
 .sm-home-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--dsw-alias-label-secondary); }
 .sm-home-title > span:first-child { flex: 1; }
+.sm-home-line { display: flex; gap: 8px; align-items: baseline; font-size: 13px; padding: 2px 0; }
+.sm-home-line-key { flex: none; width: 110px; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+.sm-home-line-val { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--dsw-alias-label-primary); font-family: var(--ds-font-family-code, ui-monospace, monospace); font-size: 12px; }
 .sm-member { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
 .sm-member:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .sm-rolepill { flex: none; padding: 1px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 600; }
@@ -296,7 +348,7 @@ const CSS = `
 
 /* ——— the create-group dialog ——— */
 .sm-modal-backdrop { position: absolute; inset: 0; z-index: 30; background: rgba(0, 0, 0, .28); display: flex; align-items: center; justify-content: center; animation: sm-page-in 100ms ease-out; }
-.sm-modal { width: min(460px, calc(100% - 48px)); max-height: min(660px, calc(100% - 48px)); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-specific-menu, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3); padding: 16px 18px; display: grid; gap: 12px; font-size: 12.5px; }
+.sm-modal { width: min(460px, calc(100% - 48px)); max-height: min(660px, calc(100% - 48px)); overflow-y: auto; box-sizing: border-box; border: 1px solid var(--dsw-alias-border-l1); border-radius: 14px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base)); box-shadow: var(--dsw-shadow-lv3); padding: 16px 18px; display: grid; gap: 12px; font-size: 12.5px; }
 .sm-modal-head { display: flex; align-items: center; gap: 8px; }
 .sm-modal-title { flex: 1; font-size: 15px; font-weight: 600; }
 .sm-field { display: grid; gap: 4px; }
@@ -328,7 +380,7 @@ const CSS = `
 /* ——— search results panel (names + message content, matches highlighted) ——— */
 .sm-search-pop {
   position: absolute; top: 34px; left: 8px; right: 8px; z-index: 33; max-height: min(420px, 60vh); overflow-y: auto;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 12px; background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
   box-shadow: var(--dsw-shadow-lv3); display: grid; padding: 4px; box-sizing: border-box;
 }
 .sm-search-hit {
@@ -343,7 +395,7 @@ const CSS = `
 .sm-plusmenu-wrap { position: relative; flex: none; }
 .sm-plusmenu {
   position: absolute; top: 30px; right: 0; z-index: 32; min-width: 160px; padding: 4px; box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-inverted); border-radius: 10px; background: var(--dsw-specific-menu);
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
   box-shadow: var(--dsw-shadow-lv3); display: grid; gap: 1px;
 }
 .sm-plusmenu button {

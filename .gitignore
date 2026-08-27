@@ -26,3 +26,6 @@ _tools/
 .pnpm-store/
 .gocache/
 .gomod/
+.dev/
+temp/
+.vscode/

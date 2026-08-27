@@ -38,7 +38,7 @@ export interface SoulmirrorPageInjected {
 }
 
 /** The page declares (and thereby renders) the `group.room` seat; the GroupPane receives `renderSlot` as plain props. */
-export type SoulmirrorPageProps = SoulmirrorPageInjected & PropsLocale<typeof NS> & PropsRenderSlots<'group.room'>
+export type SoulmirrorPageProps = SoulmirrorPageInjected & PropsLocale<typeof NS> & PropsRenderSlots<'group.room' | 'alter.card'>
 
 /** Fallback left edge when the sidebar column cannot be found (ui-layout SIDEBAR_DEFAULT). */
 const SIDEBAR_FALLBACK = 280
@@ -119,6 +119,28 @@ export function SoulmirrorPage({ openSession, scope, t, renderSlot }: Soulmirror
     return () => { document.removeEventListener('keydown', onKey) }
   }, [page.open])
 
+  // Clicking dsh's own sidebar (anywhere outside the page) returns to the
+  // normal dsh workspace. The SoulMirror footer button that toggles the page
+  // is excluded (it handles its own open/close).
+  useEffect(() => {
+    if (!page.open) return
+    const onDown = (e: MouseEvent): void => {
+      const rootEl = root.current
+      if (rootEl === null) return
+      const target = e.target instanceof Node ? e.target : (e.target as Element | null)
+      if (target === null) return
+      // A click inside the page can unmount its own target before this
+      // document-level listener runs (the mention popup does: picking an item
+      // closes it synchronously). A detached node is NOT "outside the page".
+      if (!target.isConnected) return
+      if (rootEl.contains(target)) return
+      if ((target as Element | null)?.closest?.('[data-soulmirror-footer]') != null) return
+      pageStore.close()
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => { document.removeEventListener('mousedown', onDown) }
+  }, [page.open])
+
   // Warm every thread while the page is open so clicking a row is always a cache
   // hit and the content search has archives to look through (guarded; loaded
   // threads are skipped).
@@ -159,7 +181,7 @@ export function SoulmirrorPage({ openSession, scope, t, renderSlot }: Soulmirror
           ? <GroupPane t={t} group={group} visible={page.open} onGoAlter={goAlter} renderRoom={renderSlot} />
           : seatAgent !== undefined
             ? <AgentPane t={t} agent={seatAgent} onOpenSession={openAlterSession} onRemoved={goAlter} />
-            : <AlterPane t={t} onOpenSession={openAlterSession} onGoFriend={goFriend} />}
+            : <AlterPane t={t} onOpenSession={openAlterSession} onGoFriend={goFriend} renderCards={renderSlot} scope={scope} />}
     </div>
   )
 }

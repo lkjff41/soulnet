@@ -1,4 +1,4 @@
-/**
+﻿/**
  * soulmirror-sessions — ONE alter session ("My alter", P4). The alter
  * session's agent IS the owner's alter for every friend: the owner talks to
  * it (and only to it); every friend's mail is relayed into it; it writes to
@@ -110,7 +110,7 @@ export interface Config {
 export const name = 'soulmirror-sessions'
 export const inject = ['soulmirror', 'soulmirrorHome', 'agents', 'agentLoop', 'sessions', 'workspaceRegistry']
 
-const WORKSPACE_TITLE = 'SoulMirror'
+const WORKSPACE_TITLE = '灵镜'
 const PRESET_ID = 'soulmirror-chat'
 const MAP_FILE = 'dsh-sessions.json'
 const LOG_FILE = 'dsh-sessions.log'
@@ -379,6 +379,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const client: NetworkClient = ctx.soulmirror
   const home: string = ctx.soulmirrorHome
   const a2aDir = join(home, 'a2a')
+  const mirrorDir = join(dshHome(), '灵镜') // alter session cwd + its 灵镜 dsh workspace, under \
   const mapPath = join(a2aDir, MAP_FILE)
   const presetId = config.preset ?? PRESET_ID
   const unreadInTitle = config.unreadInTitle ?? true
@@ -414,10 +415,10 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
 
   /** Live settings of the `soulmirror` namespace (the network plugin provides them); defaults when absent. */
-  const settings = (): Pick<SoulmirrorSettings, 'defaultTier' | 'autoReplyPerHour'> => {
+  const settings = (): Pick<SoulmirrorSettings, 'defaultTier' | 'autoReplyPerHour' | 'alterMode'> => {
     const live = (ctx as unknown as { get(name: string): unknown }).get('soulmirrorConfig') as { current(): SoulmirrorSettings } | undefined
     const current = live?.current()
-    return { defaultTier: current?.defaultTier ?? DEFAULT_REPLY_TIER, autoReplyPerHour: current?.autoReplyPerHour ?? DEFAULT_AUTO_REPLY_PER_HOUR }
+    return { defaultTier: current?.defaultTier ?? DEFAULT_REPLY_TIER, autoReplyPerHour: current?.autoReplyPerHour ?? DEFAULT_AUTO_REPLY_PER_HOUR, alterMode: current?.alterMode === 'full' ? 'full' : 'comms' }
   }
 
   /**
@@ -505,7 +506,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const history = (limit?: number): AlterHistory => {
     const session = alterSession()
     const agent = alterId === undefined ? undefined : ctx.agents.get(alterId)
-    const chat = session === undefined ? EMPTY_CHAT : chatFromEvents(session.events)
+    const chat = session === undefined ? EMPTY_CHAT : chatFromEvents(session.events, { process: true })
     const items = limit !== undefined && limit > 0 && chat.items.length > limit ? chat.items.slice(chat.items.length - limit) : chat.items
     return { sessionId: alterId, status: agent?.status ?? 'idle', chat: { ...chat, items } }
   }
@@ -653,7 +654,8 @@ export function apply(ctx: Context, config: Config = {}): void {
     let agentPreset: string | undefined
     if (presets !== undefined) {
       try {
-        const resolved = await presets.resolve(presetId)
+        const presetForMode = config.preset ?? (settings().alterMode === 'full' ? 'standard' : presetId)
+        const resolved = await presets.resolve(presetForMode)
         if (resolved.broken !== undefined) throw new Error(resolved.broken)
         agentPreset = resolved.id
         mount = async (agentCtx: Context) => {
@@ -736,7 +738,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (agentOptions === undefined) log('warn', `no default model (agentDefaultModel); session ${sessionId} cannot run turns until one is selected`)
     const handle = await ctx.agents.create({
       sessionId,
-      meta: { cwd: a2aDir, ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }) },
+      meta: { cwd: mirrorDir, ...(composition.agentPreset === undefined ? {} : { agentPreset: composition.agentPreset }) },
       setup: composition.setup,
       ...(agentOptions === undefined ? {} : { agentOptions }),
     })
@@ -747,10 +749,28 @@ export function apply(ctx: Context, config: Config = {}): void {
     return handle.agent
   }
 
+  /** Create/reuse the plugin's dsh workspace and pin the alter session into it, so it never lands in the ungrouped list. */
+  const attachToWorkspace = async (sessionId: SessionId): Promise<void> => {
+    const registry = ctx.get('workspaceRegistry') as { create(path: string, title?: string): Promise<{ attachSession(id: SessionId): Promise<void> }> } | undefined
+    if (registry === undefined) return
+    try {
+      await mkdir(mirrorDir, { recursive: true })
+      const ws = await registry.create(mirrorDir, WORKSPACE_TITLE)
+      await ws.attachSession(sessionId)
+      log('info', 'attached alter session ' + sessionId + ' to dsh workspace "' + WORKSPACE_TITLE + '" (' + a2aDir + ')')
+    } catch (error: unknown) {
+      log('warn', 'attach alter session to dsh workspace failed: ' + String(error))
+    }
+  }
   /** Serialised: two concurrent callers (startup + a notification) must not create two sessions. */
   const ensureAlter = (): Promise<Agent> => {
     if (ensuring !== undefined) return ensuring
-    const p = ensureAlterInner().finally(() => { ensuring = undefined })
+    const p = ensureAlterInner()
+      .then((agent) => {
+        if (alterId !== undefined) void attachToWorkspace(alterId)
+        return agent
+      })
+      .finally(() => { ensuring = undefined })
     ensuring = p
     return p
   }

@@ -170,9 +170,9 @@ export class ApiError extends Error {
  * server restart would otherwise leave UI loading states frozen forever). */
 const CALL_TIMEOUT_MS = 30_000
 
-async function call<T>(route: string, body?: Record<string, unknown>): Promise<T> {
+async function call<T>(route: string, body?: Record<string, unknown>, timeoutMs = CALL_TIMEOUT_MS): Promise<T> {
   const ctl = new AbortController()
-  const timer = setTimeout(() => { ctl.abort() }, CALL_TIMEOUT_MS)
+  const timer = setTimeout(() => { ctl.abort() }, timeoutMs)
   let response: Response
   try {
     response = await fetch(`${API_BASE}${route}`, body === undefined && route === 'state'
@@ -181,7 +181,7 @@ async function call<T>(route: string, body?: Record<string, unknown>): Promise<T
   } catch (e: unknown) {
     // A human sentence instead of the browser's "signal is aborted without reason".
     if (e instanceof DOMException && e.name === 'AbortError') {
-      throw new ApiError(`${route}: no answer within ${CALL_TIMEOUT_MS / 1000}s (server busy or restarting)`, -32603, 0)
+      throw new ApiError(`${route}: no answer within ${timeoutMs / 1000}s (server busy or restarting)`, -32603, 0)
     }
     throw e
   } finally {
@@ -201,10 +201,20 @@ async function call<T>(route: string, body?: Record<string, unknown>): Promise<T
   return parsed as T
 }
 
+/** `upgrade.check`: the running plugin version vs. the registry's latest. */
+export interface ApiUpgradeCheck { current: string; latest: string; hasUpdate: boolean; registry: string }
+/** `upgrade.run`: pnpm outcome + whether the host is restarting itself. */
+export interface ApiUpgradeRun { ok: boolean; exitCode: number; output: string; version: string; profileDir: string; restarting: boolean }
+
 export const api = {
   state: () => call<ApiState>('state'),
   /** Wallet status for the create-group UI (paid join needs a wallet). */
   payWallet: () => call<{ cdp_configured?: boolean; wallet?: { address?: string; network?: string; balance_usdc?: string; balance_eth?: string } | null; error?: string }>('pay.wallet'),
+  /** Self-upgrade: is a newer soulnet-dsh published? */
+  upgradeCheck: () => call<ApiUpgradeCheck>('upgrade.check', {}),
+  /** Self-upgrade: install `soulnet-dsh@version` (pnpm may take minutes — long timeout). */
+  upgradeRun: (version: string, registry?: string) =>
+    call<ApiUpgradeRun>('upgrade.run', { version, ...(registry === undefined ? {} : { registry }) }, 10 * 60_000),
   createIdentity: (name: string) => call<{ identity: ApiIdentity }>('identity.create', { name }),
   parseCard: (uri: string) => call<{ fp: string; name: string; uri: string }>('card.parse', { uri }),
   addFriend: (cardUri: string, note?: string) => call<{ friend: ApiFriend }>('friends.add', { card_uri: cardUri, ...(note === undefined ? {} : { note }) }),
@@ -342,6 +352,8 @@ export class NetworkStore {
   private readonly mailListeners = new Set<(notice: MailNotice) => void>()
   private readonly frameListeners = new Set<(frame: NetworkEventFrame) => void>()
   private source: EventSource | undefined
+  private everConnected = false
+  private readonly reconnectListeners = new Set<() => void>()
   private refreshTimer: ReturnType<typeof setTimeout> | undefined
   private hiddenTimer: ReturnType<typeof setTimeout> | undefined
   private inflight: Promise<void> | undefined
@@ -374,6 +386,12 @@ export class NetworkStore {
       // Frames were missed while disconnected: same catch-up as an EventSource reconnect.
       this.scheduleRefresh()
     }
+  }
+
+  /** Fires on every re-established event stream (frames were missed in between). */
+  onReconnect = (listener: () => void): (() => void) => {
+    this.reconnectListeners.add(listener)
+    return () => { this.reconnectListeners.delete(listener) }
   }
 
   getSnapshot = (): NetworkStoreSnapshot => this.snapshot
@@ -463,6 +481,13 @@ export class NetworkStore {
     if (this.source !== undefined || typeof EventSource === 'undefined') return
     const source = new EventSource(`${API_BASE}events`)
     this.source = source
+    source.addEventListener('open', () => {
+      // Every RE-connect (hidden-tab release, EventSource auto-retry) has a
+      // gap where frames were missed: state refreshes elsewhere, but loaded
+      // THREADS must refetch too or an open chat silently stays stale.
+      if (this.everConnected) for (const l of this.reconnectListeners) l()
+      this.everConnected = true
+    })
     const handle = (event: MessageEvent): void => {
       let frame: NetworkEventFrame
       try {

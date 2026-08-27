@@ -21,6 +21,9 @@ import { DEFAULT_AUTO_REPLY_PER_HOUR, DEFAULT_REPLY_TIER, normalizeTier, type Re
 
 export const SETTINGS_NAMESPACE = 'soulmirror'
 
+/** How much capability the alter session gets. `comms` = the SoulMirror-only preset; `full` = dsh's standard preset (shell / filesystem, like a normal dsh session). */
+export type AlterMode = 'comms' | 'full'
+
 export interface SoulmirrorSettings {
   /** Relay (mail office) URL; baked into identity.json when the identity is created. */
   relay: string
@@ -51,6 +54,8 @@ export interface SoulmirrorSettings {
   cdpWalletSecret: string
   /** CDP network. */
   cdpNetwork: 'base-sepolia' | 'base'
+  /** Capability mode of the alter session (applies to the next alter session created/resumed). */
+  alterMode: AlterMode
 }
 
 export const DEFAULT_PAYGATE_PORT = 9001
@@ -71,6 +76,7 @@ export const SOULMIRROR_SETTINGS_SCHEMA = z.object({
   cdpKeySecret: z.string().default('').description('CDP API key secret (from the downloaded cdp_api_key.json `privateKey`).'),
   cdpWalletSecret: z.string().default('').description('CDP wallet secret (portal.cdp.coinbase.com/wallets/non-custodial/security; shown exactly once).'),
   cdpNetwork: z.union([z.const('base-sepolia'), z.const('base')]).default('base-sepolia').description('CDP network: base-sepolia = testnet (recommended while testing), base = mainnet (real funds).'),
+  alterMode: z.union([z.const('comms'), z.const('full')]).default('comms').description('Alter capability: comms = SoulMirror-only preset (messages/groups); full = dsh standard preset (shell + filesystem, like a normal dsh session). Applies to the next alter session.')
 })
 
 /** Fill in defaults for a partial section (plugin config or a stored user section). */
@@ -97,5 +103,6 @@ export function resolveSettings(partial: Partial<SoulmirrorSettings> | undefined
     cdpKeySecret: partial?.cdpKeySecret ?? '',
     cdpWalletSecret: partial?.cdpWalletSecret ?? '',
     cdpNetwork: partial?.cdpNetwork === 'base' ? 'base' : 'base-sepolia',
+    alterMode: partial?.alterMode === 'full' ? 'full' : 'comms',
   }
 }

@@ -67,7 +67,7 @@ export function AgentSettingsSheet({ t, agent, onClose, onSaved, onRemoved }: {
       data-soulmirror-agent-sheet
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ width: 'min(420px, calc(100% - 48px))', maxHeight: 'calc(100% - 64px)', overflowY: 'auto', borderRadius: 12, border: '1px solid rgba(127,127,127,.3)', background: 'var(--dsw-alias-bg-elevated, var(--dsw-alias-bg-primary, #fff))', boxShadow: '0 12px 40px rgba(0,0,0,.28)', padding: 16, display: 'grid', gap: 10 }}>
+      <div style={{ width: 'min(420px, calc(100% - 48px))', maxHeight: 'calc(100% - 64px)', overflowY: 'auto', borderRadius: 12, border: '1px solid rgba(127,127,127,.3)', background: 'var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2, #fff))', boxShadow: '0 12px 40px rgba(0,0,0,.28)', padding: 16, display: 'grid', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <strong style={{ flex: 1, fontSize: '1em' }}>{agent === undefined ? t('settings.agents.add') : t('agent.settings.title', { name: agent.name })}</strong>
           <button type="button" className="sm-ghostbtn" onClick={onClose}>{t('inbox.close')}</button>
@@ -78,7 +78,7 @@ export function AgentSettingsSheet({ t, agent, onClose, onSaved, onRemoved }: {
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.85em' }}>
           <span style={{ opacity: 0.8 }}>{t('settings.agents.cwd')}</span>
-          <input style={field} value={cwd} onChange={e => { setCwd(e.target.value) }} data-soulmirror-agent-cwd />
+          <input style={field} value={cwd} placeholder={t('settings.agents.cwdHint')} onChange={e => { setCwd(e.target.value) }} data-soulmirror-agent-cwd />
         </label>
         <label style={{ display: 'grid', gap: 4, fontSize: '0.85em' }}>
           <span style={{ opacity: 0.8 }}>{t('settings.agents.preset')}</span>

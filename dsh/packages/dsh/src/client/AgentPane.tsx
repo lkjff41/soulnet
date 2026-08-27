@@ -7,12 +7,14 @@
  * from the header. Live: SSE `agent` frames for this name trigger a
  * debounced refetch.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button, IconRightUpOutline14, IconSendOutline16, IconSettingsOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { api, networkStore, type ApiChatItem, type ApiHistory, type ApiSeatAgent } from './api.ts'
 import { AgentSettingsSheet } from './AgentSettingsSheet.tsx'
+import { ContentTabs } from './ContentTabs.tsx'
 import { ProcessItemView } from './process-ui.tsx'
-import { formatClock, formatDay } from './page-state.ts'
+import { formatClock, formatDay, tabsFor, type PaneTab } from './page-state.ts'
+import { pageStore } from './page-store.ts'
 import type { Translate } from './translate.ts'
 
 const FOLLOW_SLACK = 48
@@ -35,6 +37,7 @@ function dayOf(ts: number): string {
 
 export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps) {
   const name = agent.name
+  const page = useSyncExternalStore(pageStore.subscribe, pageStore.getSnapshot)
   const [history, setHistory] = useState<ApiHistory | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [draft, setDraft] = useState('')
@@ -44,6 +47,8 @@ export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
   const following = useRef(true)
+  /** Last scroll offset, kept across tab switches (the scroller unmounts off "chat"). */
+  const savedTop = useRef(0)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const load = useCallback((): void => {
@@ -85,7 +90,21 @@ export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps
     const el = scroller.current
     if (el === null) return
     following.current = el.scrollHeight - el.scrollTop - el.clientHeight < FOLLOW_SLACK
+    savedTop.current = el.scrollTop
   }
+
+  /**
+   * The scroller UNMOUNTS while a non-chat tab is up, so returning to "chat"
+   * would otherwise paint a fresh element at scrollTop 0 (the oldest message):
+   * the data-keyed effect above does not re-run on a tab switch. Put the reader
+   * back where they were — or at the bottom if they were following the tail.
+   */
+  useLayoutEffect(() => {
+    if (page.paneTab !== 'chat') return
+    const el = scroller.current
+    if (el === null) return
+    el.scrollTop = following.current ? el.scrollHeight : savedTop.current
+  }, [page.paneTab])
 
   const submit = (text: string): void => {
     if (text.trim() === '' || instructing) return
@@ -197,6 +216,46 @@ export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps
 
   const sessionId = history?.sessionId ?? agent.sessionId ?? null
 
+  const paneTab: PaneTab = page.paneTab
+  const tabs = tabsFor('agent', false)
+  const agentInfo = (
+    <div className="sm-home" data-soulmirror-agent-home>
+      <div className="sm-home-inner">
+        <div className="sm-home-id">
+          <span className="sm-avatar sm-avatar-lg" aria-hidden>🤖</span>
+          <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+            <span className="sm-home-id-name">{name}</span>
+            <span className="sm-home-id-sub">
+              <span className={`sm-livedot${running ? ' sm-busy' : ''}`} aria-hidden />
+              <span>{running ? t('settings.agents.status.running') : t('settings.agents.status.idle')}</span>
+            </span>
+          </div>
+        </div>
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('agent.home.profile')}</span></div>
+          {agent.preset !== undefined ? <div className="sm-home-line"><span className="sm-home-line-key">{t('agent.home.preset')}</span><span className="sm-home-line-val">{agent.preset}</span></div> : null}
+          {agent.cwd !== undefined ? <div className="sm-home-line"><span className="sm-home-line-key">{t('agent.home.cwd')}</span><span className="sm-home-line-val">{agent.cwd}</span></div> : null}
+          {sessionId !== null ? <div className="sm-home-line"><span className="sm-home-line-key">{t('agent.home.session')}</span><span className="sm-home-line-val">{sessionId}</span></div> : null}
+        </div>
+        {agent.prompt !== undefined && agent.prompt !== ''
+          ? (
+            <div className="sm-home-card">
+              <div className="sm-home-title"><span>{t('agent.home.prompt')}</span></div>
+              <div className="sm-home-rules">{agent.prompt}</div>
+            </div>
+          )
+          : null}
+        <div className="sm-home-card">
+          <div className="sm-home-title"><span>{t('agent.home.actions')}</span></div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button type="button" className="sm-ghostbtn" onClick={() => { setSheetOpen(true) }}><IconSettingsOutline16 size={14} /> {t('agent.settings')}</button>
+            {sessionId !== null ? <button type="button" className="sm-ghostbtn" onClick={() => { onOpenSession(sessionId) }}><IconRightUpOutline14 size={14} /> {t('alter.openDsh')}</button> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <section className="sm-chat-col" data-soulmirror-page-chat="agent" data-soulmirror-agent-pane={name} style={{ position: 'relative' }}>
       <header className="sm-chat-head">
@@ -226,6 +285,8 @@ export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps
             : null}
         </div>
       </header>
+      <ContentTabs tabs={tabs} active={paneTab} onChange={pageStore.setPaneTab} t={t} />
+      {paneTab === 'info' ? agentInfo : <>
       <div ref={scroller} className="sm-thread" onScroll={onScroll} data-soulmirror-agent-thread>
         <div className="sm-thread-inner">
           {history === undefined && error === undefined ? <span className="sm-muted" style={{ alignSelf: 'center', fontSize: 12 }}>{t('page.thread.loading')}</span> : null}
@@ -270,6 +331,7 @@ export function AgentPane({ t, agent, onOpenSession, onRemoved }: AgentPaneProps
       {sheetOpen
         ? <AgentSettingsSheet t={t} agent={agent} onClose={() => { setSheetOpen(false) }} onRemoved={onRemoved} />
         : null}
+      </>}
     </section>
   )
 }
