@@ -24,3 +24,5 @@ payment/secrets/
 # local Go toolchain + build cache (never commit)
 _tools/
 .pnpm-store/
+.gocache/
+.gomod/
