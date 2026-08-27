@@ -671,9 +671,21 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
               </label>
               {joinCard !== undefined && joinCard.price !== undefined && joinCard.addr !== undefined
                 ? (
-                  <>
-                    <p style={{ fontSize: '0.85em', margin: 0, opacity: 0.85 }} data-soulmirror-group-join-paid>
-                      {t('group.join.paid.info', { price: joinCard.price, addr: joinCard.addr })}
+                  <div style={{ display: 'grid', gap: 8 }} data-soulmirror-group-join-paid>
+                    <div style={{ border: '1px solid rgba(127,127,127,.3)', borderRadius: 8, padding: '8px 10px', display: 'grid', gap: 4, background: 'rgba(127,127,127,.06)' }}>
+                      <span style={{ fontSize: '0.75em', opacity: 0.7 }}>{t('group.join.paid.amountLabel')}</span>
+                      <span style={{ fontSize: '1.25em', fontWeight: 700, color: 'var(--dsw-alias-state-warn-primary, rgb(220,160,60))' }} data-soulmirror-group-join-price>
+                        {joinCard.price} USDC
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: 2 }}>
+                      <span style={{ fontSize: '0.75em', opacity: 0.7 }}>{t('group.join.paid.toLabel')}</span>
+                      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '0.82em', wordBreak: 'break-all' }} data-soulmirror-group-join-addr>
+                        {joinCard.addr}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.8em', margin: 0, opacity: 0.8 }}>
+                      {t('group.join.paid.payHint', { price: joinCard.price })}
                     </p>
                     <label className="sm-field">
                       <span>{t('group.join.paid.tx')}</span>
@@ -685,7 +697,7 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                         data-soulmirror-group-join-tx
                       />
                     </label>
-                  </>
+                  </div>
                 )
                 : null}
               <div className="sm-modal-foot">
