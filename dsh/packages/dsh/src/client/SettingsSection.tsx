@@ -99,7 +99,12 @@ export function WalletBlock({ t }: { t: SoulmirrorSettingsProps['t'] }) {
       setErr(r.error)
     }).catch(() => { setWallet(null) })
   }, [])
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => {
+    refresh()
+    // Keep the balance current after transfers settle on-chain.
+    const timer = setInterval(refresh, 15000)
+    return () => { clearInterval(timer) }
+  }, [refresh])
   return (
     <div style={card} data-soulmirror-wallet-block>
       <h4 style={h4}>{t('settings.wallet')}</h4>

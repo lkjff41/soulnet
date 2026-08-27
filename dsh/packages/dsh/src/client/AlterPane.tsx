@@ -46,8 +46,16 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
   const running = alter.status === 'running' || alter.chat.running || alter.instructing
   const [draft, setDraft] = useState('')
   const [wallet, setWallet] = useState<{ address?: string; network?: string; balance_usdc?: string; balance_eth?: string } | null | undefined>(undefined)
+  // Refresh the wallet balance periodically so it stays current after a
+  // transfer settles on-chain (no manual refresh needed).
   useEffect(() => {
-    void api.payWallet().then((r) => { setWallet(r.wallet ?? null) }).catch(() => { setWallet(null) })
+    let alive = true
+    const load = (): void => {
+      void api.payWallet().then((r) => { if (alive) setWallet(r.wallet ?? null) }).catch(() => { if (alive) setWallet(null) })
+    }
+    load()
+    const timer = setInterval(load, 15000)
+    return () => { alive = false; clearInterval(timer) }
   }, [])
   const scroller = useRef<HTMLDivElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
