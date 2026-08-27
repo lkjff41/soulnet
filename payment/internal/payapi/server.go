@@ -176,9 +176,28 @@ func (s *Service) walletCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, -32603, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{
+	// A fresh CDP account starts with 0 ETH, so its very first transaction
+	// (a USDC transfer / paid group join) would fail for lack of gas. On a
+	// testnet, seed the account with faucet ETH right away so it works
+	// out of the box. Best-effort: failures surface in the response, not as a
+	// hard error (the user can still receive funds without ETH).
+	fauceted := false
+	faucetErr := ""
+	if s.network == cdp.NetworkBaseSepolia {
+		if _, err := s.cdp.RequestFaucet(s.network, acc.Address, "eth"); err != nil {
+			faucetErr = err.Error()
+		} else {
+			fauceted = true
+		}
+	}
+	resp := map[string]any{
 		"address": acc.Address, "network": s.network, "created": true,
-	})
+		"eth_seeded": fauceted,
+	}
+	if faucetErr != "" {
+		resp["faucet_error"] = faucetErr
+	}
+	writeJSON(w, resp)
 }
 
 // walletBalance returns the wallet's USDC + ETH balances. With CDP it uses the

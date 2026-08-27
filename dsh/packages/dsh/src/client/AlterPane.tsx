@@ -219,7 +219,10 @@ export function AlterPane({ t, onOpenSession, onGoFriend }: AlterPaneProps) {
           <div className="sm-alter-wallet" data-soulmirror-alter-wallet style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', fontSize: '0.8em', opacity: 0.9, borderBottom: '1px solid rgba(127,127,127,.18)' }}>
             <span style={{ opacity: 0.7 }}>{t('alter.wallet')}</span>
             <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={wallet.address} data-soulmirror-alter-wallet-address>{wallet.address}</span>
-            <span style={{ opacity: 0.85 }}>{wallet.balance_usdc !== undefined ? `USDC ${wallet.balance_usdc}` : ''}</span>
+            <span style={{ opacity: 0.85, whiteSpace: 'nowrap' }}>{wallet.balance_usdc !== undefined ? `USDC ${wallet.balance_usdc}` : ''}</span>
+            {wallet.balance_eth !== undefined
+              ? <span style={{ opacity: 0.6, whiteSpace: 'nowrap' }} data-soulmirror-alter-wallet-eth>ETH {Number(wallet.balance_eth).toFixed(4)}</span>
+              : null}
           </div>
         )
         : null}
