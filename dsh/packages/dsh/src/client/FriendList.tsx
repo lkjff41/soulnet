@@ -165,6 +165,7 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
   /** The join dialog's group card lookup (paid groups require a payment proof). */
   const [joinCard, setJoinCard] = useState<{ name: string; join: string; price?: string; addr?: string } | undefined>(undefined)
   const [joinTx, setJoinTx] = useState('')
+  const [payConfirming, setPayConfirming] = useState(false)
   /** The WeChat-style "+" menu and the small dialog it opens. */
   const [plusOpen, setPlusOpen] = useState(false)
   const [agentSheetOpen, setAgentSheetOpen] = useState(false)
@@ -291,8 +292,13 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
           throw new Error(t('group.join.paid.noPrice'))
         }
         if (walletAddress !== undefined) {
-          // The wallet lives in this gateway: pay in one click and apply with
-          // the proof automatically (no tx-hash copying for local wallets).
+          // The wallet lives in this gateway: ask for explicit confirmation of
+          // the amount before paying (never move money without consent).
+          if (!payConfirming) {
+            setPayConfirming(true)
+            return undefined
+          }
+          setPayConfirming(false)
           const { gid, tx_hash, amount } = await api.groupPaidJoin(joinUri.trim())
           setJoinUri(''); setJoinTx(''); setJoinCard(undefined); setDialog(undefined)
           if (gid !== '') onSelect(groupKey(gid))
@@ -697,9 +703,18 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                     </p>
                     {walletAddress !== undefined
                       ? (
-                        <p style={{ fontSize: '0.8em', margin: 0, opacity: 0.8 }} data-soulmirror-group-join-localpay>
-                          {t('group.join.paid.localHint')}
-                        </p>
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <p style={{ fontSize: '0.8em', margin: 0, opacity: 0.8 }} data-soulmirror-group-join-localpay>
+                            {t('group.join.paid.localHint')}
+                          </p>
+                          {payConfirming
+                            ? (
+                              <p style={{ fontSize: '0.85em', margin: 0, color: 'var(--dsw-alias-state-warn-primary, rgb(220,160,60))', fontWeight: 600 }} data-soulmirror-group-join-confirm>
+                                {t('group.join.paid.confirm', { price: joinCard.price })}
+                              </p>
+                            )
+                            : null}
+                        </div>
                       )
                       : (
                         <label className="sm-field">
@@ -717,9 +732,13 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                 )
                 : null}
               <div className="sm-modal-foot">
-                <Button variant="outline" size="sm" onClick={() => { setDialog(undefined) }}>{t('inbox.close')}</Button>
-                <Button variant="outline" size="sm" disabled={busy !== undefined || joinUri.trim() === '' || (joinCard?.price !== undefined && walletAddress === undefined && joinTx.trim() === '')} onClick={submitJoin} data-soulmirror-group-join-apply>
-                  {joinCard?.price !== undefined && walletAddress !== undefined ? t('group.join.paid.payApply') : t('group.join.apply')}
+                <Button variant="outline" size="sm" onClick={() => { if (payConfirming) { setPayConfirming(false) } else { setDialog(undefined) } }} data-soulmirror-group-join-back>
+                  {payConfirming ? t('group.home.edit.cancel') : t('inbox.close')}
+                </Button>
+                <Button variant="primary" size="sm" disabled={busy !== undefined || joinUri.trim() === '' || (joinCard?.price !== undefined && walletAddress === undefined && joinTx.trim() === '')} onClick={submitJoin} data-soulmirror-group-join-apply>
+                  {joinCard?.price !== undefined && walletAddress !== undefined
+                    ? (payConfirming ? t('group.join.paid.confirmPay') : t('group.join.paid.payApply'))
+                    : t('group.join.apply')}
                 </Button>
               </div>
             </div>
