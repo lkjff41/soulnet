@@ -188,6 +188,14 @@ export function apply(ctx: Context, config: Config = {}): void {
           if (result.valid === true) {
             await client.groups.approve(event.gid, req.fp)
             log('info', `paid join verified & auto-approved: ${req.fp} → ${event.gid} (${req.payment!.amount} USDC)`)
+            // Tell the group who just paid their way in (as the owner, so it
+            // reads as an official notice). Best-effort.
+            try {
+              const who = req.name !== '' ? req.name : (req.fp.length > 10 ? `${req.fp.slice(0, 10)}…` : req.fp)
+              await client.groups.send(event.gid, `✅ ${who} paid ${req.payment!.amount} USDC and joined the group`, { by: 'owner' })
+            } catch (e) {
+              log('warn', `paid join notice send failed: ${String(e)}`)
+            }
           } else {
             log('warn', `paid join NOT verified (${result.reason ?? 'invalid'}): ${req.fp} → ${event.gid}`)
           }

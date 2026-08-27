@@ -632,6 +632,19 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
           }
         }
         await client.groups.approve(gid, fp as Fingerprint)
+        // Announce the paid joiner to the group (owner voice). Best-effort;
+        // the amount comes from the verified payment proof when available.
+        if (paidConfig !== undefined) {
+          try {
+            const apps = await client.groups.applications(gid)
+            const app = apps.find(a => a.fp === fp)
+            const amount = app?.payment?.amount ?? paidConfig.price
+            const who = app?.name !== undefined && app.name !== '' ? app.name : (fp.length > 10 ? `${fp.slice(0, 10)}…` : fp)
+            await client.groups.send(gid, `✅ ${who} paid ${amount} USDC and joined the group`, { by: 'owner' })
+          } catch (e) {
+            options.log('warn', `paid join notice send failed: ${String(e)}`)
+          }
+        }
         return { status: 200, body: { ok: true } }
       }
       case 'group.applicationReject': {
