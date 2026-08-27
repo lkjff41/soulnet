@@ -37,3 +37,18 @@ describe('resolveSettings paygate/CDP defaults', () => {
     expect(s.paygatePort).toBe(DEFAULT_PAYGATE_PORT)
   })
 })
+
+import { paygatePlatformPackageName } from '../src/network/paygate.ts'
+
+describe('paygatePlatformPackageName', () => {
+  it('names the platform package for supported pairs', () => {
+    expect(paygatePlatformPackageName('darwin', 'arm64')).toBe('soulnet-paygate-darwin-arm64')
+    expect(paygatePlatformPackageName('win32', 'x64')).toBe('soulnet-paygate-windows-x64')
+    expect(paygatePlatformPackageName('linux', 'arm64')).toBe('soulnet-paygate-linux-arm64')
+  })
+
+  it('answers undefined for unsupported platforms', () => {
+    expect(paygatePlatformPackageName('freebsd', 'x64')).toBeUndefined()
+    expect(paygatePlatformPackageName('darwin', 'mips')).toBeUndefined()
+  })
+})

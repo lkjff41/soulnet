@@ -10,8 +10,10 @@
  * `soulmirror` settings, which live in $DSH_HOME profiles — never in the repo).
  */
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import type { NetworkClient } from './types.ts'
 
 /** The paygate-relevant slice of the `soulmirror` settings. */
@@ -63,18 +65,59 @@ export interface PaygateClient {
 
 const A2A_TIMEOUT_MS = 30_000
 
-/** The paygate binary next to this plugin package (`<plugin>/bin/paygate`), when present. */
-function bundledPaygateBinary(): string | undefined {
+const PAYGATE_PLATFORM_PACKAGE_PREFIX = 'soulnet-paygate-'
+
+/** `soulnet-paygate-<os>-<arch>` for a supported pair, else `undefined`. */
+export function paygatePlatformPackageName(platform = process.platform, arch = process.arch): string | undefined {
+  const target = `${platform}-${arch}`
+  if (!['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64'].includes(target)) return undefined
+  return `${PAYGATE_PLATFORM_PACKAGE_PREFIX}${platform === 'win32' ? 'windows' : platform}-${arch}`
+}
+
+/**
+ * Resolve the installed paygate binary, in order:
+ *  1. the explicit `paygateBinary` setting (handled by the caller);
+ *  2. the platform package `soulnet-paygate-<os>-<arch>` (optional dependency,
+ *     resolved from this module and its realpath so pnpm layouts work);
+ *  3. a hand-dropped `<plugin>/bin/paygate`;
+ *  4. `paygate` on PATH (the caller's fallback).
+ */
+/** Resolve an installed package's directory from this module (mirrors peer resolution). */
+function resolvePaygatePackageDir(name: string): string | undefined {
+  const bases: string[] = [import.meta.url]
   try {
-    // The built output may be flat (lib/<chunk>.js) or nested (lib/network/...),
-    // so probe a few depths up from this module for <pkg>/bin/paygate.
+    const real = realpathSync(fileURLToPath(import.meta.url))
+    const realUrl = pathToFileURL(real).href
+    if (realUrl !== import.meta.url) bases.push(realUrl)
+  } catch {
+    // not a file URL (bundled in memory) or unreadable; the first base still works
+  }
+  for (const base of bases) {
+    try {
+      return dirname(createRequire(base).resolve(`${name}/package.json`))
+    } catch {
+      // not installed from this base
+    }
+  }
+  return undefined
+}
+
+function resolvePaygateBinary(): string | undefined {
+  const pkg = paygatePlatformPackageName()
+  if (pkg !== undefined) {
+    const pkgDir = resolvePaygatePackageDir(pkg)
+    if (pkgDir !== undefined) {
+      const bin = join(pkgDir, 'bin', process.platform === 'win32' ? 'paygate.exe' : 'paygate')
+      if (existsSync(bin)) return bin
+    }
+  }
+  // hand-dropped binary next to the plugin
+  try {
     for (const depth of ['../bin/paygate', '../../bin/paygate', '../../../bin/paygate']) {
       const candidate = new URL(depth, import.meta.url)
       if (existsSync(candidate)) return candidate.pathname
     }
-  } catch {
-    // import.meta.url unavailable (tests) — fall through
-  }
+  } catch { /* import.meta.url unavailable */ }
   return undefined
 }
 
@@ -127,7 +170,7 @@ export function createPaygateClient(options: PaygateOptions): PaygateClient {
   const spawnGateway = (): void => {
     if (disposed || child !== undefined) return
     const s = options.settings()
-    const binary = s.paygateBinary !== '' ? s.paygateBinary : (bundledPaygateBinary() ?? 'paygate')
+    const binary = s.paygateBinary !== '' ? s.paygateBinary : (resolvePaygateBinary() ?? 'paygate')
     const env = envFor()
     status = { state: 'starting', port: s.paygatePort, cdpConfigured: cdpConfigured(), network: s.cdpNetwork }
     log(`paygate: spawning ${binary} on 127.0.0.1:${s.paygatePort} (cdp=${cdpConfigured()})`)
