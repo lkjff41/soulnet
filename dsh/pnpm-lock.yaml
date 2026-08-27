@@ -122,6 +122,9 @@ importers:
       soulnet-paygate-linux-x64:
         specifier: workspace:*
         version: link:../soulnet-paygate-linux-x64
+      soulnet-paygate-win32-x64:
+        specifier: workspace:*
+        version: link:../soulnet-paygate-win32-x64
       soulnet-peer-darwin-arm64:
         specifier: workspace:*
         version: link:../soulnet-darwin-arm64
