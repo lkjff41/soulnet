@@ -44,12 +44,31 @@ const (
 // JoinPayment is the paid-join proof an applicant attaches to a group_join
 // (Message.Payment): the on-chain USDC transfer they made to the group's
 // JoinAddr. Verified by the owner's node against the public chain before
-// approving (amount ≥ join_price, recipient == join_addr).
+// approving (amount ≥ join_price, recipient == join_addr). Replay protection:
+// the owner consumes each tx_hash once (one tx admits one member) and — when
+// Payer/Proof are present — requires the on-chain sender to be an address the
+// applicant proved control of (a wallet-secret receipt, see join.receipt).
 type JoinPayment struct {
-	TxHash string `json:"tx_hash"`        // 0x transaction hash (Base)
-	Amount string `json:"amount"`         // decimal USDC, e.g. "1.00"
-	To     string `json:"to"`             // 0x recipient address (must equal join_addr)
-	Note   string `json:"note,omitempty"` // optional display note ("paid 1 USDC to join")
+	TxHash string `json:"tx_hash"` // 0x transaction hash (Base)
+	Amount string `json:"amount"`  // decimal USDC, e.g. "1.00"
+	To     string `json:"to"`      // 0x recipient address (must equal join_addr)
+	// Payer is the 0x address the applicant paid from (identity binding: the
+	// owner rejects proofs whose on-chain sender differs).
+	Payer string `json:"payer,omitempty"`
+	// Proof is the wallet-secret receipt (minted by the applicant's local
+	// paygate) proving the applicant controls Payer. Optional — without it the
+	// owner still enforces sender==Payer, but cannot cryptographically tie the
+	// wallet to the applicant.
+	Proof *JoinPaymentProof `json:"proof,omitempty"`
+	Note  string            `json:"note,omitempty"` // optional display note ("paid 1 USDC to join")
+}
+
+// JoinPaymentProof is the wire form of the wallet-secret receipt minted by
+// the applicant's paygate (POST /v2/pay/join.receipt).
+type JoinPaymentProof struct {
+	Message string `json:"message"` // canonical JSON {"fp","tx_hash","payer"}
+	Pubkey  string `json:"pubkey"`  // hex 0x04||x||y (uncompressed P-256 public key)
+	Sig     string `json:"sig"`     // hex R||S (raw ES256 signature)
 }
 
 // Speak scopes (GroupProfile.SpeakWho).

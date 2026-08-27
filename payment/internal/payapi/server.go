@@ -7,7 +7,11 @@ package payapi
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -74,6 +78,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("GET /v2/pay/wallet", s.requireAuth(s.walletBalance))
 	mux.HandleFunc("POST /v2/pay/transfer", s.requireAuth(s.transfer))
 	mux.HandleFunc("POST /v2/pay/join.verify", s.requireAuth(s.joinVerify))
+	mux.HandleFunc("POST /v2/pay/join.receipt", s.requireAuth(s.joinReceipt))
 	mux.HandleFunc("POST /v2/pay/config", s.requireAuth(s.setConfig))
 	mux.HandleFunc("GET /v2/pay/config", s.requireAuth(s.getConfig))
 	mux.HandleFunc("GET /v2/pay/health", s.health)
@@ -217,7 +222,7 @@ func (s *Service) walletBalance(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if address == "" {
-		writeError(w, ErrNoWallet, "no wallet yet: 先让分身创建一个钱包，或在设置里填收款地址")
+		writeError(w, ErrNoWallet, "no wallet yet: create one in the wallet settings first")
 		return
 	}
 	usdc, err := s.rpc.BalanceOf(r.Context(), mustUSDC(s.network), address)
@@ -356,7 +361,7 @@ func (s *Service) transfer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wallet == nil {
-		writeError(w, ErrNoWallet, "no wallet yet: 先让分身创建一个钱包")
+		writeError(w, ErrNoWallet, "no wallet yet: create one in the wallet settings first")
 		return
 	}
 
@@ -447,13 +452,23 @@ func (s *Service) transfer(w http.ResponseWriter, r *http.Request) {
 }
 
 // joinVerify checks that a paid group-join transfer really happened: the tx is
-// confirmed, paid to the group's join address, for at least the join price.
+// confirmed, paid to the group's join address, for at least the join price,
+// and — the replay protection — that it is bound to the applicant:
+//
+//   - the tx's on-chain sender must match the applicant's declared payer;
+//   - when a wallet-secret receipt (join.receipt) is attached, the ES256
+//     signature must verify under the embedded P-256 public key and that key
+//     must derive to the sender address (the applicant provably holds the
+//     wallet that paid).
+//
 // It uses the public RPC — no CDP needed by the verifier.
 func (s *Service) joinVerify(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		TxHash string `json:"tx_hash"`
-		To     string `json:"to"`
-		Amount string `json:"amount"` // decimal USDC, e.g. "1.00"
+		TxHash string               `json:"tx_hash"`
+		To     string               `json:"to"`
+		Amount string               `json:"amount"`          // decimal USDC, e.g. "1.00"
+		Payer  string               `json:"payer,omitempty"` // declared paying 0x address (identity binding)
+		Proof  *JoinPaymentProofReq `json:"proof,omitempty"` // wallet-secret receipt
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, ErrBadRequest, "bad json: "+err.Error())
@@ -480,20 +495,145 @@ func (s *Service) joinVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	ok, actual, err := s.rpc.VerifyUSDCTransfer(ctx, req.TxHash, usdc, req.To, minAmount)
+	ok, actual, from, err := s.rpc.VerifyUSDCTransfer(ctx, req.TxHash, usdc, req.To, minAmount)
 	if err != nil {
 		writeError(w, -32603, "verify: "+err.Error())
 		return
 	}
 	if !ok {
-		reason := "交易未找到或尚未确认"
+		reason := "transaction not found or not yet confirmed"
 		if actual != nil {
-			reason = "到账金额不足（收到 " + atomicToDecimal(actual, 6) + " USDC）"
+			reason = "received " + atomicToDecimal(actual, 6) + " USDC — less than the join price"
 		}
 		writeJSON(w, map[string]any{"valid": false, "reason": reason})
 		return
 	}
-	writeJSON(w, map[string]any{"valid": true, "amount": atomicToDecimal(actual, 6)})
+	// Identity binding: the on-chain sender must be the applicant's payer.
+	if req.Payer != "" && !strings.EqualFold(from, req.Payer) {
+		writeJSON(w, map[string]any{"valid": false, "reason": "payer mismatch: the transaction was sent from " + from + ", not the declared " + req.Payer})
+		return
+	}
+	if req.Proof != nil {
+		payer, err := verifyJoinReceipt(req.Proof)
+		if err != nil {
+			writeJSON(w, map[string]any{"valid": false, "reason": "invalid payment receipt: " + err.Error()})
+			return
+		}
+		if !strings.EqualFold(payer, from) {
+			writeJSON(w, map[string]any{"valid": false, "reason": "payment receipt is not signed by the transaction's sender"})
+			return
+		}
+	}
+	writeJSON(w, map[string]any{"valid": true, "amount": atomicToDecimal(actual, 6), "from": from})
+}
+
+// JoinPaymentProofReq is the wallet-secret receipt an applicant attaches to a
+// paid-join application (a2a.JoinPayment.Proof): a signed statement
+// {"fp","tx_hash","payer"} proving control of the paying wallet.
+type JoinPaymentProofReq struct {
+	Message string `json:"message"` // canonical JSON {"fp","tx_hash","payer"}
+	Pubkey  string `json:"pubkey"`  // hex 0x04||x||y (uncompressed P-256 public key)
+	Sig     string `json:"sig"`     // hex R||S (raw ES256 signature)
+}
+
+// joinReceipt mints the wallet-secret receipt for a paid-join payment: the
+// caller proves control of the wallet that sent tx_hash by signing
+// {"fp","tx_hash","payer"} with the wallet secret (ES256, P-256). The
+// group owner's node verifies it in join.verify against the on-chain sender.
+func (s *Service) joinReceipt(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TxHash string `json:"tx_hash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, ErrBadRequest, "bad json: "+err.Error())
+		return
+	}
+	if !strings.HasPrefix(req.TxHash, "0x") || len(req.TxHash) != 66 {
+		writeError(w, ErrBadRequest, "tx_hash must be a 0x transaction hash")
+		return
+	}
+	if s.cdp == nil {
+		writeError(w, ErrCDPNotConfigured, "CDP not configured")
+		return
+	}
+	fp := fpOf(r)
+	wallet, err := s.store.GetWallet(fp)
+	if err != nil {
+		writeError(w, -32603, err.Error())
+		return
+	}
+	if wallet == nil {
+		writeError(w, ErrNoWallet, "no wallet for this identity yet")
+		return
+	}
+	// encoding/json marshals map keys in sorted order, so the message bytes are
+	// canonical and the verifier re-hashes them verbatim.
+	msgBytes, err := json.Marshal(map[string]string{"fp": fp, "tx_hash": req.TxHash, "payer": wallet.Address})
+	if err != nil {
+		writeError(w, -32603, err.Error())
+		return
+	}
+	sig, err := s.cdp.SignWalletMessage(msgBytes)
+	if err != nil {
+		writeError(w, -32603, "wallet sign: "+err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{
+		"message": string(msgBytes),
+		"pubkey":  hex.EncodeToString(s.cdp.WalletPublicKey()),
+		"sig":     hex.EncodeToString(sig),
+	})
+}
+
+// verifyJoinReceipt checks a wallet-secret receipt: the ES256 signature must
+// verify under the embedded P-256 public key, and the EVM address derived from
+// that key must equal the receipt's declared payer. It returns the payer.
+func verifyJoinReceipt(p *JoinPaymentProofReq) (string, error) {
+	if p == nil {
+		return "", fmt.Errorf("missing receipt")
+	}
+	var msg struct {
+		FP     string `json:"fp"`
+		TxHash string `json:"tx_hash"`
+		Payer  string `json:"payer"`
+	}
+	if err := json.Unmarshal([]byte(p.Message), &msg); err != nil {
+		return "", fmt.Errorf("message: %w", err)
+	}
+	if !isHexAddress(msg.Payer) {
+		return "", fmt.Errorf("receipt payer is not a 0x address")
+	}
+	pub, err := parseUncompressedP256(p.Pubkey)
+	if err != nil {
+		return "", fmt.Errorf("pubkey: %w", err)
+	}
+	sig, err := hex.DecodeString(p.Sig)
+	if err != nil || len(sig) != 64 {
+		return "", fmt.Errorf("sig must be a 64-byte hex R||S signature")
+	}
+	digest := sha256.Sum256([]byte(p.Message))
+	if !ecdsa.Verify(pub, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+		return "", fmt.Errorf("signature does not verify under the embedded public key")
+	}
+	if !strings.EqualFold(cdp.EVMAddressFromPublicKey(pub.X, pub.Y), msg.Payer) {
+		return "", fmt.Errorf("public key does not derive to the declared payer")
+	}
+	return msg.Payer, nil
+}
+
+// parseUncompressedP256 parses a hex 0x04||x||y uncompressed P-256 public key.
+func parseUncompressedP256(s string) (*ecdsa.PublicKey, error) {
+	raw, err := hex.DecodeString(s)
+	if err != nil || len(raw) != 65 || raw[0] != 4 {
+		return nil, fmt.Errorf("expected an uncompressed 0x04||x||y P-256 public key")
+	}
+	x := new(big.Int).SetBytes(raw[1:33])
+	y := new(big.Int).SetBytes(raw[33:65])
+	curve := elliptic.P256()
+	if !curve.IsOnCurve(x, y) {
+		return nil, fmt.Errorf("public key is not on P-256")
+	}
+	return &ecdsa.PublicKey{Curve: curve, X: x, Y: y}, nil
 }
 
 // setConfig persists the gateway mode (manual address / network). CDP secrets

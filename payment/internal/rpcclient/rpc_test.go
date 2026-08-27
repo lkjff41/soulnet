@@ -7,16 +7,20 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
 // A real USDC Transfer on Base Sepolia (fetched from sepolia.base.org):
 // tx 0xa13a28cb667919dc675d6401bcd6bd2329e8e6d612e8bbbfc1bf547602eec3c7
 // sent 1000 atomic (0.001 USDC) from 0x2e0c37b721124e2558baf75f6f8e6cc9f14aec29 to itself.
+const realFrom = "0x2e0c37b721124e2558baf75f6f8e6cc9f14aec29"
+
 const realReceiptJSON = `{
   "transactionHash": "0xa13a28cb667919dc675d6401bcd6bd2329e8e6d612e8bbbfc1bf547602eec3c7",
   "status": "0x1",
   "blockNumber": "0x2bda63f",
+  "from": "0x2e0c37b721124e2558baf75f6f8e6cc9f14aec29",
   "logs": [
     {
       "address": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
@@ -67,16 +71,19 @@ func TestVerifyUSDCTransferRealVector(t *testing.T) {
 	c := newStubClient(t, realReceiptJSON)
 	ctx := context.Background()
 
-	// 1) matching recipient, amount >= min → valid
-	ok, amt, err := c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, realTo, big.NewInt(1000))
+	// 1) matching recipient, amount >= min → valid, sender reported
+	ok, amt, from, err := c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, realTo, big.NewInt(1000))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok || amt.Cmp(big.NewInt(1000)) != 0 {
 		t.Fatalf("expected valid with 1000, got ok=%v amt=%v", ok, amt)
 	}
+	if !strings.EqualFold(from, realFrom) {
+		t.Fatalf("sender should be %s, got %s", realFrom, from)
+	}
 	// 2) amount below min → invalid, amount still reported
-	ok, amt, err = c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, realTo, big.NewInt(1001))
+	ok, amt, _, err = c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, realTo, big.NewInt(1001))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +94,7 @@ func TestVerifyUSDCTransferRealVector(t *testing.T) {
 		t.Fatalf("amount should be reported as 1000, got %v", amt)
 	}
 	// 3) wrong recipient → invalid
-	ok, _, err = c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, "0x0000000000000000000000000000000000000001", big.NewInt(1))
+	ok, _, _, err = c.VerifyUSDCTransfer(ctx, realTxHash, usdcSepolia, "0x0000000000000000000000000000000000000001", big.NewInt(1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,18 +110,18 @@ func TestVerifyUSDCTransferEdgeCases(t *testing.T) {
 	}
 	_ = json.Unmarshal([]byte(realReceiptJSON), &rec)
 	reverted := `{"transactionHash":"` + realTxHash + `","status":"0x0","logs":[]}`
-	if ok, _, err := newStubClient(t, reverted).VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
+	if ok, _, _, err := newStubClient(t, reverted).VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
 		t.Fatalf("reverted: ok=%v err=%v", ok, err)
 	}
 
 	// tx not found → verified=false, err=nil (the "not yet" case)
-	if ok, _, err := newStubClient(t, "").VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
+	if ok, _, _, err := newStubClient(t, "").VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
 		t.Fatalf("nil receipt: ok=%v err=%v", ok, err)
 	}
 
 	// Transfer log for a different contract is ignored
 	other := `{"transactionHash":"` + realTxHash + `","status":"0x1","logs":[{"address":"0x1111111111111111111111111111111111111111","topics":["` + TransferTopic + `","0x0000000000000000000000002e0c37b721124e2558baf75f6f8e6cc9f14aec29","0x0000000000000000000000002e0c37b721124e2558baf75f6f8e6cc9f14aec29"],"data":"0x00000000000000000000000000000000000000000000000000000000000003e8"}]}`
-	if ok, _, err := newStubClient(t, other).VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
+	if ok, _, _, err := newStubClient(t, other).VerifyUSDCTransfer(context.Background(), realTxHash, usdcSepolia, realTo, big.NewInt(1)); err != nil || ok {
 		t.Fatalf("wrong contract: ok=%v err=%v", ok, err)
 	}
 }

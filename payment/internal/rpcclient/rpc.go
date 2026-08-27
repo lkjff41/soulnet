@@ -38,7 +38,9 @@ func New(endpoint string) *Client {
 type Receipt struct {
 	Status      string `json:"status"` // "0x1" = success
 	BlockNumber string `json:"blockNumber"`
-	Logs        []Log  `json:"logs"`
+	// From is the sender of the transaction (the payer of a USDC transfer).
+	From string `json:"from"`
+	Logs []Log  `json:"logs"`
 }
 
 // Log is one event log.
@@ -101,22 +103,24 @@ func (c *Client) EstimateGas(ctx context.Context, from, to, data string) (uint64
 
 // VerifyUSDCTransfer verifies that txHash is a confirmed USDC transfer to `to`
 // of at least `minAmount` atomic units, on the given USDC contract. It returns
-// (verified, actualAmount, err). A nil receipt (unconfirmed/not found) is a
-// normal "not yet" outcome: verified=false, err=nil.
-func (c *Client) VerifyUSDCTransfer(ctx context.Context, txHash, usdcContract, to string, minAmount *big.Int) (bool, *big.Int, error) {
+// (verified, actualAmount, sender, err). `sender` is the tx's `from` (the
+// payer) when the transfer is found, "" otherwise — the receiver needs it to
+// bind the proof to the applicant's identity. A nil receipt (unconfirmed/not
+// found) is a normal "not yet" outcome: verified=false, err=nil.
+func (c *Client) VerifyUSDCTransfer(ctx context.Context, txHash, usdcContract, to string, minAmount *big.Int) (bool, *big.Int, string, error) {
 	receipt, err := c.GetTransactionReceipt(ctx, txHash)
 	if err != nil {
-		return false, nil, err
+		return false, nil, "", err
 	}
 	if receipt == nil {
-		return false, nil, nil // not found / pending
+		return false, nil, "", nil // not found / pending
 	}
 	if receipt.Status != "0x1" {
-		return false, nil, nil // reverted
+		return false, nil, "", nil // reverted
 	}
 	want := strings.ToLower(strings.TrimPrefix(to, "0x"))
 	if len(want) != 40 {
-		return false, nil, fmt.Errorf("invalid to address %q", to)
+		return false, nil, "", fmt.Errorf("invalid to address %q", to)
 	}
 	for _, log := range receipt.Logs {
 		if !strings.EqualFold(log.Address, usdcContract) {
@@ -135,11 +139,11 @@ func (c *Client) VerifyUSDCTransfer(ctx context.Context, txHash, usdcContract, t
 			continue
 		}
 		if minAmount != nil && amount.Cmp(minAmount) < 0 {
-			return false, amount, nil
+			return false, amount, "", nil
 		}
-		return true, amount, nil
+		return true, amount, receipt.From, nil
 	}
-	return false, nil, nil
+	return false, nil, "", nil
 }
 
 // BalanceOf returns the ERC-20 balance of `holder` for `tokenContract` (eth_call).

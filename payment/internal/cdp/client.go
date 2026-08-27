@@ -184,3 +184,22 @@ func (c *Client) do(method, path string, body []byte, walletAuth bool, out any) 
 	}
 	return nil
 }
+
+// WalletPublicKey returns the wallet's uncompressed P-256 public key, or nil
+// when CDP / the wallet secret is not configured.
+func (c *Client) WalletPublicKey() []byte {
+	if c.auth == nil {
+		return nil
+	}
+	return c.auth.WalletPublicKey()
+}
+
+// SignWalletMessage signs a message with the wallet secret (raw ES256 R||S,
+// 64 bytes) — proof that the caller holds the wallet key. Used to mint
+// paid-join receipts so the receiver can bind a payment to the payer.
+func (c *Client) SignWalletMessage(msg []byte) ([]byte, error) {
+	if c.auth == nil {
+		return nil, fmt.Errorf("CDP not configured")
+	}
+	return c.auth.SignWalletSecret(msg)
+}

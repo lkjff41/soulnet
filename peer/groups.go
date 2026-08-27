@@ -24,6 +24,10 @@ var ErrNoGroup = fmt.Errorf("unknown group")
 // ErrGroupOwner: the operation is reserved for (or forbidden to) the group owner.
 var ErrGroupOwner = fmt.Errorf("group owner operation not allowed")
 
+// ErrPaidProofUsed: the applicant's payment tx has already been consumed by
+// another admission — one on-chain payment admits exactly one member.
+var ErrPaidProofUsed = fmt.Errorf("payment proof already used")
+
 // GroupSummary is one group row for hosts (list view).
 type GroupSummary struct {
 	GID      string `json:"gid"`
@@ -1300,6 +1304,18 @@ func (n *Peer) GroupApprove(ctx context.Context, gid, fp string) error {
 	}
 	if app == nil {
 		return fmt.Errorf("%w: no join application from %s", ErrNoPending, a2a.ShortFp(fp))
+	}
+	if app.Payment != nil && app.Payment.TxHash != "" {
+		// Replay guard (paid groups): claim the payment tx atomically BEFORE
+		// admitting — a single on-chain transfer admits exactly one member, so
+		// reusing a tx_hash (by anyone, for any later application) is refused.
+		claimed, err := n.Groups.ConsumePaymentTx(gid, app.Payment.TxHash)
+		if err != nil {
+			return err
+		}
+		if !claimed {
+			return fmt.Errorf("%w: tx %s has already been used to join this group", ErrPaidProofUsed, a2a.ShortFp(app.Payment.TxHash))
+		}
 	}
 	if st.Roster.Member(fp) == nil {
 		if err := n.republishRoster(ctxOrBackground(ctx), st, nil, []*a2a.Card{app.Card}, nil); err != nil {

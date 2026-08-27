@@ -137,6 +137,30 @@ func (a *auth) walletJWT(method, host, path string, body []byte) (string, error)
 	return signJWT(hdr, claims, es256Signer(a.walletEC))
 }
 
+// WalletPublicKey returns the uncompressed P-256 public key (0x04||x||y) of the
+// wallet secret, or nil when no wallet secret is configured. Receivers use it
+// to verify wallet-secret-signed receipts and to derive the wallet's EVM address.
+func (a *auth) WalletPublicKey() []byte {
+	if a.walletEC == nil {
+		return nil
+	}
+	pub := a.walletEC.PublicKey
+	out := make([]byte, 65)
+	out[0] = 4
+	pub.X.FillBytes(out[1:33])
+	pub.Y.FillBytes(out[33:65])
+	return out
+}
+
+// SignWalletSecret signs msg with the wallet secret (raw ES256 R||S, 64 bytes).
+// This is the proof that the caller holds the wallet whose address CDP manages.
+func (a *auth) SignWalletSecret(msg []byte) ([]byte, error) {
+	if a.walletEC == nil {
+		return nil, fmt.Errorf("no wallet secret configured")
+	}
+	return es256Signer(a.walletEC)(msg)
+}
+
 // es256Signer returns a raw-R||S ES256 (ECDSA P-256 / SHA-256) signer.
 func es256Signer(key *ecdsa.PrivateKey) func([]byte) ([]byte, error) {
 	return func(msg []byte) ([]byte, error) {

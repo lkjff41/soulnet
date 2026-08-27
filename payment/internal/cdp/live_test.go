@@ -129,13 +129,13 @@ func TestLiveCDPFullFlow(t *testing.T) {
 	}
 	t.Logf("USDC transfer tx = %s", sent)
 
-	// 4. Verify on-chain: recipient, amount ≥ 0.5 USDC.
-	if ok, actual, err := rpc.VerifyUSDCTransfer(ctx, sent, usdc, recipient.Address, amount); err != nil {
+	// 4. Verify on-chain: recipient, amount ≥ 0.5 USDC, sender == our wallet.
+	if ok, actual, from, err := rpc.VerifyUSDCTransfer(ctx, sent, usdc, recipient.Address, amount); err != nil {
 		t.Fatalf("verify: %v", err)
 	} else if !ok {
 		t.Fatalf("transfer not verified (tx may need a moment)")
 	} else {
-		t.Logf("verified on-chain: %s USDC → %s", atomicUSDC(actual), recipient.Address)
+		t.Logf("verified on-chain: %s USDC → %s from %s", atomicUSDC(actual), recipient.Address, from)
 	}
 	t.Logf("✅ full pipeline OK — view: https://sepolia.basescan.org/tx/%s", sent)
 }
