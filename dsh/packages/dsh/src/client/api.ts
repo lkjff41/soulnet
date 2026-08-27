@@ -258,6 +258,8 @@ export const api = {
   /** Fetch a group's public card (join policy, paid price/address). */
   groupLookup: (uri: string) => call<{ card: { gid: string; name: string; join: string; members?: number; joinPrice?: string; joinAddr?: string; rulesHead?: string } | null }>('group.lookup', { uri }),
   groupApply: (uri: string, note?: string, payment?: { tx_hash: string; amount: string; to: string }) => call<{ ok: true; gid: string }>('group.apply', { uri, ...(note === undefined ? {} : { note }), ...(payment === undefined ? {} : { payment }) }),
+  /** Pay the group's join price from THIS user's local CDP wallet and apply with the proof (one click). */
+  groupPaidJoin: (uri: string) => call<{ ok: true; gid: string; tx_hash?: string; amount?: string }>('group.paidJoin', { uri }),
   groupApplications: (gid: string) => call<{ applications: ApiGroupApplication[] }>('group.applications', { gid }),
   groupApprove: (gid: string, fp: string) => call<{ ok: true }>('group.approve', { gid, fp }),
   groupApplicationReject: (gid: string, fp: string) => call<{ ok: true }>('group.applicationReject', { gid, fp }),

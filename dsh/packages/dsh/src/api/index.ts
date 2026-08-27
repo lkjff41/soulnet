@@ -544,6 +544,41 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
         if (uri === undefined) return bad('uri must not be empty')
         return { status: 200, body: { card: await client.groups.lookup(uri) } }
       }
+      case 'group.paidJoin': {
+        // Pay the group's published join price from THIS user's local CDP wallet
+        // and apply with the payment proof — one click for users whose wallet
+        // lives in this gateway (external-wallet users still paste a tx hash
+        // through the manual path).
+        const uri = text(body['uri'])
+        if (uri === undefined) return bad('uri must not be empty')
+        const card = await client.groups.lookup(uri)
+        if (card === null) return { status: 400, body: { error: { code: -32004, message: '找不到该群（无法读取公开群名片）。' } } }
+        const paid = card.join === 'paid'
+          ? { addr: card.joinAddr, price: card.joinPrice }
+          : paidJoinConfig({
+              join: card.join,
+              ...(card.joinPrice === undefined ? {} : { joinPrice: card.joinPrice }),
+              ...(card.joinAddr === undefined ? {} : { joinAddr: card.joinAddr }),
+              ...(card.rulesHead === undefined ? {} : { rules: card.rulesHead }),
+            })
+        if (paid === undefined || paid.addr === undefined || paid.price === undefined) {
+          return { status: 400, body: { error: { code: -32602, message: '该群不是付费进群模式。' } } }
+        }
+        const pg = options.paygate()
+        if (pg === undefined) {
+          return { status: 400, body: { error: { code: -32603, message: '本机没有可用钱包：请先让分身创建一个钱包，或改用外部钱包粘贴交易哈希。' } } }
+        }
+        const tx = await pg.call('POST', '/v2/pay/transfer', {
+          to_address: paid.addr,
+          amount_usdc: paid.price,
+        }) as { tx_hash?: string; amount?: string }
+        if (tx.tx_hash === undefined) {
+          return { status: 400, body: { error: { code: -32603, message: '付款未成功：' + JSON.stringify(tx) } } }
+        }
+        const { gid } = await client.groups.apply(uri, 'paid ' + (tx.amount ?? paid.price) + ' USDC to join', { tx_hash: tx.tx_hash, amount: tx.amount ?? paid.price, to: paid.addr })
+        options.log('info', `paid join via local wallet: ${gid} (${tx.amount ?? paid.price} USDC)`)
+        return { status: 200, body: { ok: true, gid, tx_hash: tx.tx_hash, amount: tx.amount ?? paid.price } }
+      }
       case 'group.apply': {
         const uri = text(body['uri'])
         if (uri === undefined) return bad('uri must not be empty')

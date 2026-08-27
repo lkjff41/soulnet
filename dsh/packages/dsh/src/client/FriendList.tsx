@@ -290,6 +290,14 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
         if (paid.price === undefined || paid.addr === undefined) {
           throw new Error(t('group.join.paid.noPrice'))
         }
+        if (walletAddress !== undefined) {
+          // The wallet lives in this gateway: pay in one click and apply with
+          // the proof automatically (no tx-hash copying for local wallets).
+          const { gid, tx_hash, amount } = await api.groupPaidJoin(joinUri.trim())
+          setJoinUri(''); setJoinTx(''); setJoinCard(undefined); setDialog(undefined)
+          if (gid !== '') onSelect(groupKey(gid))
+          return t('group.join.paid.paidViaLocal', { amount: amount ?? paid.price, tx: tx_hash ?? '' })
+        }
         if (joinTx.trim() === '') {
           throw new Error(t('group.join.paid.needProof', { price: paid.price, addr: paid.addr }))
         }
@@ -687,23 +695,31 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                     <p style={{ fontSize: '0.8em', margin: 0, opacity: 0.8 }}>
                       {t('group.join.paid.payHint', { price: joinCard.price })}
                     </p>
-                    <label className="sm-field">
-                      <span>{t('group.join.paid.tx')}</span>
-                      <input
-                        className="sm-input"
-                        placeholder="0x…"
-                        value={joinTx}
-                        onChange={(e) => { setJoinTx(e.target.value) }}
-                        data-soulmirror-group-join-tx
-                      />
-                    </label>
+                    {walletAddress !== undefined
+                      ? (
+                        <p style={{ fontSize: '0.8em', margin: 0, opacity: 0.8 }} data-soulmirror-group-join-localpay>
+                          {t('group.join.paid.localHint')}
+                        </p>
+                      )
+                      : (
+                        <label className="sm-field">
+                          <span>{t('group.join.paid.tx')}</span>
+                          <input
+                            className="sm-input"
+                            placeholder="0x…"
+                            value={joinTx}
+                            onChange={(e) => { setJoinTx(e.target.value) }}
+                            data-soulmirror-group-join-tx
+                          />
+                        </label>
+                      )}
                   </div>
                 )
                 : null}
               <div className="sm-modal-foot">
                 <Button variant="outline" size="sm" onClick={() => { setDialog(undefined) }}>{t('inbox.close')}</Button>
-                <Button variant="outline" size="sm" disabled={busy !== undefined || joinUri.trim() === '' || (joinCard?.price !== undefined && joinTx.trim() === '')} onClick={submitJoin} data-soulmirror-group-join-apply>
-                  {t('group.join.apply')}
+                <Button variant="outline" size="sm" disabled={busy !== undefined || joinUri.trim() === '' || (joinCard?.price !== undefined && walletAddress === undefined && joinTx.trim() === '')} onClick={submitJoin} data-soulmirror-group-join-apply>
+                  {joinCard?.price !== undefined && walletAddress !== undefined ? t('group.join.paid.payApply') : t('group.join.apply')}
                 </Button>
               </div>
             </div>
