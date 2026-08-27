@@ -190,6 +190,16 @@ export function GroupPane({ t, group, visible, onGoAlter, renderRoom }: GroupPan
 
   const saveProfile = (): void => {
     const tags = edit.tags.split(',').map(s => s.trim()).filter(s => s !== '')
+    // Paid join needs a price and a receiving wallet — validate before saving
+    // so the user gets a clear message instead of a silent no-op.
+    if (edit.join === 'paid' && edit.joinPrice.trim() === '') {
+      setError(t('group.form.join.paid.priceRequired'))
+      return
+    }
+    if (edit.join === 'paid' && edit.joinPrice.trim() !== '' && walletAddress === undefined) {
+      setError(t('group.form.join.paid.noWallet'))
+      return
+    }
     void run('profile.save', async () => {
       await api.groupSetProfile(gid, {
         ...(profile ?? {}),
@@ -305,6 +315,9 @@ export function GroupPane({ t, group, visible, onGoAlter, renderRoom }: GroupPan
                       <label className="sm-field">
                         <span>{t('group.form.joinPrice')}</span>
                         <input className="sm-input" type="text" placeholder="1.00" value={edit.joinPrice} onChange={(e) => { setEdit({ ...edit, joinPrice: e.target.value }) }} data-soulmirror-group-edit-join-price />
+                        {edit.joinPrice.trim() === ''
+                          ? <span style={{ fontSize: '0.82em', color: 'rgb(220,80,60)' }} data-soulmirror-group-edit-paid-missing>{t('group.form.join.paid.priceRequired')}</span>
+                          : null}
                       </label>
                     )
                     : null}
