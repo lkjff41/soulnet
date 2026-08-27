@@ -48,6 +48,12 @@ func spawnHelper(t *testing.T, verb string, args ...string) *exec.Cmd {
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("spawning the fake process failed: %v", err)
 	}
+	// Reap the child the moment it dies. In production nothing the relaunch
+	// helper waits on is its own child, so a killed process disappears for
+	// kill(pid, 0) immediately; here the TEST is the parent, and without a
+	// waiter the corpse stays a zombie - which kill(2) still counts as alive,
+	// making the helper believe its kill failed (caught on the unix CI legs).
+	go func() { _ = cmd.Wait() }()
 	return cmd
 }
 
