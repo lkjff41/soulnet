@@ -179,11 +179,14 @@ export function apply(ctx: Context, config: Config = {}): void {
           if (paidConfig === undefined) return
           // Verify against the PUBLISHED price/address — never the applicant's
           // self-reported values, so underpaying (or paying a different address)
-          // fails even though the applicant claims a matching proof.
+          // fails even though the applicant claims a matching proof. The payer
+          // + wallet receipt bind the tx to the applicant (replay protection).
           const result = await paygate.call('POST', '/v2/pay/join.verify', {
             tx_hash: req.payment!.tx_hash,
             to: paidConfig.addr,
             amount: paidConfig.price,
+            ...(req.payment!.payer === undefined ? {} : { payer: req.payment!.payer }),
+            ...(req.payment!.proof === undefined ? {} : { proof: req.payment!.proof }),
           }) as { valid?: boolean; reason?: string }
           if (result.valid === true) {
             await client.groups.approve(event.gid, req.fp)

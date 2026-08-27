@@ -274,7 +274,7 @@ interface WireGroup {
 }
 interface WireGroupPin { id?: string; from?: string; ts?: unknown; body?: string }
 interface WireGroupApplication { fp?: string; name?: string; note?: string; ts?: unknown; payment?: WireJoinPayment }
-interface WireJoinPayment { tx_hash?: string; amount?: string; to?: string; note?: string }
+interface WireJoinPayment { tx_hash?: string; amount?: string; to?: string; payer?: string; proof?: { message?: string; pubkey?: string; sig?: string }; note?: string }
 interface WireGroupCard { gid?: string; name?: string; join?: string; members?: number; join_price?: string; join_addr?: string; join_note?: string; rules_head?: string }
 interface WireGroupInfo extends WireGroup {
   member_list?: { fp?: string; name?: string; agents?: unknown[] }[]
@@ -631,7 +631,14 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
             name: cardName !== '' ? cardName : shortFp(peer),
             note: str(m.body),
             ...(payment === undefined || payment.tx_hash === undefined ? {} : {
-              payment: { tx_hash: payment.tx_hash, amount: str(payment.amount), to: str(payment.to) },
+              payment: {
+                tx_hash: payment.tx_hash,
+                amount: str(payment.amount),
+                to: str(payment.to),
+                ...(payment.payer === undefined ? {} : { payer: payment.payer }),
+                ...(payment.proof !== undefined && payment.proof.message !== undefined && payment.proof.pubkey !== undefined && payment.proof.sig !== undefined ? { proof: { message: payment.proof.message, pubkey: payment.proof.pubkey, sig: payment.proof.sig } } : {}),
+                ...(payment.note === undefined ? {} : { note: payment.note }),
+              },
             }),
           },
         })
@@ -967,7 +974,16 @@ export function createSoulnetNetworkClient(options: SoulnetClientOptions): Netwo
         const r = await call<{ ok?: boolean; gid?: string }>('group.apply', {
           uri,
           ...(note === undefined ? {} : { note }),
-          ...(payment === undefined ? {} : { payment: { tx_hash: payment.tx_hash, amount: payment.amount, to: payment.to, ...(payment.note === undefined ? {} : { note: payment.note }) } }),
+          ...(payment === undefined ? {} : {
+            payment: {
+              tx_hash: payment.tx_hash,
+              amount: payment.amount,
+              to: payment.to,
+              ...(payment.payer === undefined ? {} : { payer: payment.payer }),
+              ...(payment.proof === undefined ? {} : { proof: payment.proof }),
+              ...(payment.note === undefined ? {} : { note: payment.note }),
+            },
+          }),
         })
         return { gid: str(r.gid) }
       },

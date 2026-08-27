@@ -150,7 +150,21 @@ export interface JoinPayment {
   readonly tx_hash: string
   readonly amount: string
   readonly to: string
+  /** The 0x address the applicant paid from (identity binding: the owner's
+   * node rejects proofs whose on-chain sender differs from this). */
+  readonly payer?: string
+  /** Wallet-secret receipt (from the applicant's local paygate) proving the
+   * applicant controls `payer` - without it the owner cannot cryptographically
+   * tie the wallet to the applicant. */
+  readonly proof?: JoinPaymentProof
   readonly note?: string
+}
+
+/** The wire form of a wallet-secret receipt (paygate POST /v2/pay/join.receipt). */
+export interface JoinPaymentProof {
+  readonly message: string
+  readonly pubkey: string
+  readonly sig: string
 }
 
 export interface GroupApplication {

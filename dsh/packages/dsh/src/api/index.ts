@@ -572,12 +572,28 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
         const tx = await pg.call('POST', '/v2/pay/transfer', {
           to_address: paid.addr,
           amount_usdc: paid.price,
-        }) as { tx_hash?: string; amount?: string }
+        }) as { tx_hash?: string; amount?: string; from?: string }
         if (tx.tx_hash === undefined) {
-          return { status: 400, body: { error: { code: -32603, message: '付款未成功：' + JSON.stringify(tx) } } }
+          return { status: 400, body: { error: { code: -32603, message: 'payment failed: ' + JSON.stringify(tx) } } }
         }
-        const { gid } = await client.groups.apply(uri, 'paid ' + (tx.amount ?? paid.price) + ' USDC to join', { tx_hash: tx.tx_hash, amount: tx.amount ?? paid.price, to: paid.addr })
-        options.log('info', `paid join via local wallet: ${gid} (${tx.amount ?? paid.price} USDC)`)
+        // Prove control of the paying wallet: mint a wallet-secret receipt
+        // (ES256 over {fp, tx_hash, payer}) so the group owner can bind this
+        // payment to the applicant instead of trusting a bare tx hash.
+        let proof: { message: string; pubkey: string; sig: string } | undefined
+        try {
+          const rec = await pg.call('POST', '/v2/pay/join.receipt', { tx_hash: tx.tx_hash }) as { message?: string; pubkey?: string; sig?: string }
+          if (rec.message !== undefined && rec.pubkey !== undefined && rec.sig !== undefined) proof = { message: rec.message, pubkey: rec.pubkey, sig: rec.sig }
+        } catch {
+          options.log('warn', 'join.receipt unavailable — attaching the payment without a wallet proof')
+        }
+        const { gid } = await client.groups.apply(uri, 'paid ' + (tx.amount ?? paid.price) + ' USDC to join', {
+          tx_hash: tx.tx_hash,
+          amount: tx.amount ?? paid.price,
+          to: paid.addr,
+          ...(tx.from === undefined ? {} : { payer: tx.from }),
+          ...(proof === undefined ? {} : { proof }),
+        })
+        options.log('info', `paid join via local wallet: ${gid} (${tx.amount ?? paid.price} USDC${proof === undefined ? '' : ' + wallet proof'})`)
         return { status: 200, body: { ok: true, gid, tx_hash: tx.tx_hash, amount: tx.amount ?? paid.price } }
       }
       case 'group.apply': {
@@ -592,7 +608,19 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
           if (tx === undefined || amount === undefined || to === undefined) {
             return bad('payment must carry tx_hash, amount and to')
           }
-          payment = { tx_hash: tx, amount, to }
+          const payer = text(raw['payer'])
+          const proofRaw = raw['proof'] as Record<string, unknown> | undefined
+          const proof = typeof proofRaw === 'object' && proofRaw !== null
+            ? { message: text(proofRaw['message']), pubkey: text(proofRaw['pubkey']), sig: text(proofRaw['sig']) }
+            : undefined
+          if (proof !== undefined && (proof.message === undefined || proof.pubkey === undefined || proof.sig === undefined)) {
+            return bad('payment proof must carry message, pubkey and sig')
+          }
+          payment = {
+            tx_hash: tx, amount, to,
+            ...(payer === undefined ? {} : { payer }),
+            ...(proof === undefined ? {} : { proof: { message: proof.message!, pubkey: proof.pubkey!, sig: proof.sig! } }),
+          }
         }
         const { gid } = await client.groups.apply(uri, text(body['note']), payment)
         options.log('info', `applied to group ${gid} via URI${payment === undefined ? '' : ' (with payment proof)'}`)
@@ -626,10 +654,19 @@ export function createApiHandler(options: ApiOptions): ApiHandler {
           }
           // Verify against the PUBLISHED price/address — never the applicant's
           // self-reported values (underpaying or paying a different address
-          // fails even if the applicant's proof claims otherwise).
-          const verified = await pg.call('POST', '/v2/pay/join.verify', { tx_hash: payment.tx_hash, to: paidConfig.addr, amount: paidConfig.price }) as { valid?: boolean }
+          // fails even if the applicant's proof claims otherwise). Pass the
+          // applicant's payer + wallet receipt so the gateway can also enforce
+          // the identity binding (tx sender == applicant's declared payer, and
+          // the receipt proves the applicant holds that wallet).
+          const verified = await pg.call('POST', '/v2/pay/join.verify', {
+            tx_hash: payment.tx_hash,
+            to: paidConfig.addr,
+            amount: paidConfig.price,
+            ...(payment.payer === undefined ? {} : { payer: payment.payer }),
+            ...(payment.proof === undefined ? {} : { proof: payment.proof }),
+          }) as { valid?: boolean; reason?: string }
           if (verified.valid !== true) {
-            return { status: 400, body: { error: { code: -32602, message: '付费进群：申请人的付款未通过链上验证（收款方/金额不符或交易无效），不能批准。' } } }
+            return { status: 400, body: { error: { code: -32602, message: 'paid-join: the applicant payment failed on-chain verification (' + (verified.reason ?? 'invalid') + '); cannot approve.' } } }
           }
         }
         await client.groups.approve(gid, fp as Fingerprint)

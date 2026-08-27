@@ -606,9 +606,24 @@ export function apply(ctx: Context): void {
             to_address: toAddr,
             amount_usdc: price,
             ...(args.memo === undefined ? {} : { memo: args.memo }),
-          }) as { tx_hash?: string; amount?: string }
+          }) as { tx_hash?: string; amount?: string; from?: string }
           if (tx.tx_hash === undefined) return { ok: false, message: '付款未成功：' + JSON.stringify(tx) }
-          await net.groups.apply(args.uri, '已付 ' + (tx.amount ?? price) + ' USDC 进群', { tx_hash: tx.tx_hash, amount: tx.amount ?? price, to: toAddr })
+          // Bind the payment to this identity: mint a wallet-secret receipt so
+          // the group owner can verify the tx sender == this wallet (replay guard).
+          let proof: { message: string; pubkey: string; sig: string } | undefined
+          try {
+            const rec = await pay.call('POST', '/v2/pay/join.receipt', { tx_hash: tx.tx_hash }) as { message?: string; pubkey?: string; sig?: string }
+            if (rec.message !== undefined && rec.pubkey !== undefined && rec.sig !== undefined) proof = { message: rec.message, pubkey: rec.pubkey, sig: rec.sig }
+          } catch {
+            // no wallet proof — the application still carries the tx hash
+          }
+          await net.groups.apply(args.uri, '已付 ' + (tx.amount ?? price) + ' USDC 进群', {
+            tx_hash: tx.tx_hash,
+            amount: tx.amount ?? price,
+            to: toAddr,
+            ...(tx.from === undefined ? {} : { payer: tx.from }),
+            ...(proof === undefined ? {} : { proof }),
+          })
           return { ok: true, paid: tx.amount ?? price, tx_hash: tx.tx_hash, to: toAddr, message: '已付款 ' + (tx.amount ?? price) + ' USDC 并提交进群申请，等群主确认。' }
         }
         case 'join_status': {

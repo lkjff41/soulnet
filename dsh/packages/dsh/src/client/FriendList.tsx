@@ -165,6 +165,8 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
   /** The join dialog's group card lookup (paid groups require a payment proof). */
   const [joinCard, setJoinCard] = useState<{ name: string; join: string; price?: string; addr?: string } | undefined>(undefined)
   const [joinTx, setJoinTx] = useState('')
+  /** External-wallet path: the 0x address the applicant paid from (identity binding). */
+  const [joinPayer, setJoinPayer] = useState('')
   const [payConfirming, setPayConfirming] = useState(false)
   /** The WeChat-style "+" menu and the small dialog it opens. */
   const [plusOpen, setPlusOpen] = useState(false)
@@ -304,15 +306,20 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
           }
           setPayConfirming(false)
           const { gid, tx_hash, amount } = await api.groupPaidJoin(joinUri.trim())
-          setJoinUri(''); setJoinTx(''); setJoinCard(undefined); setDialog(undefined)
+          setJoinUri(''); setJoinTx(''); setJoinPayer(''); setJoinCard(undefined); setDialog(undefined)
           if (gid !== '') onSelect(groupKey(gid))
           return t('group.join.paid.paidViaLocal', { amount: amount ?? paid.price, tx: tx_hash ?? '' })
         }
         if (joinTx.trim() === '') {
           throw new Error(t('group.join.paid.needProof', { price: paid.price, addr: paid.addr }))
         }
-        const { gid } = await api.groupApply(joinUri.trim(), t('group.join.paid.note', { price: paid.price }), { tx_hash: joinTx.trim(), amount: paid.price, to: paid.addr })
-        setJoinUri(''); setJoinTx(''); setJoinCard(undefined); setDialog(undefined)
+        const { gid } = await api.groupApply(joinUri.trim(), t('group.join.paid.note', { price: paid.price }), {
+          tx_hash: joinTx.trim(),
+          amount: paid.price,
+          to: paid.addr,
+          ...(joinPayer.trim() === '' ? {} : { payer: joinPayer.trim() }),
+        })
+        setJoinUri(''); setJoinTx(''); setJoinPayer(''); setJoinCard(undefined); setDialog(undefined)
         if (gid !== '') onSelect(groupKey(gid))
         return t('group.join.paid.applied')
       }
@@ -735,7 +742,7 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                   placeholder={t('group.join.uri')}
                   value={joinUri}
                   autoFocus
-                  onChange={(e) => { setJoinUri(e.target.value); setJoinCard(undefined); setJoinTx('') }}
+                  onChange={(e) => { setJoinUri(e.target.value); setJoinCard(undefined); setJoinTx(''); setJoinPayer('') }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitJoin() }}
                   data-soulmirror-group-join-uri
                 />
@@ -774,6 +781,7 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                         </div>
                       )
                       : (
+                        <>
                         <label className="sm-field">
                           <span>{t('group.join.paid.tx')}</span>
                           <input
@@ -784,6 +792,17 @@ export function FriendList({ t, selected, onSelect, onAccepted, onClose }: Frien
                             data-soulmirror-group-join-tx
                           />
                         </label>
+                        <label className="sm-field">
+                          <span>{t('group.join.paid.payer')}</span>
+                          <input
+                            className="sm-input"
+                            placeholder="0x…"
+                            value={joinPayer}
+                            onChange={(e) => { setJoinPayer(e.target.value) }}
+                            data-soulmirror-group-join-payer
+                          />
+                        </label>
+                        </>
                       )}
                   </div>
                 )
