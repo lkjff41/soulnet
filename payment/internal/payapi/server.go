@@ -183,7 +183,7 @@ func (s *Service) walletCreate(w http.ResponseWriter, r *http.Request) {
 	// hard error (the user can still receive funds without ETH).
 	fauceted := false
 	faucetErr := ""
-	if s.network == cdp.NetworkBaseSepolia {
+	if cdp.IsTestnet(s.network) {
 		if _, err := s.cdp.RequestFaucet(s.network, acc.Address, "eth"); err != nil {
 			faucetErr = err.Error()
 		} else {

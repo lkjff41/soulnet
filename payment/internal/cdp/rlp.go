@@ -24,6 +24,12 @@ const (
 	RPCMainnet = "https://mainnet.base.org"
 )
 
+// IsTestnet reports whether the network is a test network (the CDP faucet only
+// serves testnets; mainnet must never call it).
+func IsTestnet(network string) bool {
+	return network == NetworkBaseSepolia
+}
+
 // USDCContract returns the USDC address for a CDP network name.
 func USDCContract(network string) (string, error) {
 	switch network {

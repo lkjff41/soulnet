@@ -75,3 +75,20 @@ func TestEIP1559TxRLP(t *testing.T) {
 		})
 	}
 }
+
+func TestIsTestnet(t *testing.T) {
+	cases := []struct {
+		network string
+		want    bool
+	}{
+		{NetworkBaseSepolia, true},
+		{NetworkBase, false},
+		{"", false},
+		{"ethereum", false},
+	}
+	for _, c := range cases {
+		if got := IsTestnet(c.network); got != c.want {
+			t.Fatalf("IsTestnet(%q) = %v, want %v", c.network, got, c.want)
+		}
+	}
+}
